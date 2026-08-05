@@ -1,0 +1,8 @@
+# Archives
+*.zip
+
+# Dossier de référence (projet original importé)
+git ref/
+
+# Fichiers système macOS
+.DS_Store

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOD Player - JavaScript</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>MOD PLAYER</h1>
+            <div id="title-display">No module loaded</div>
+            <div id="info-display">Load a .MOD file to start</div>
+            <div id="author">written by Eddy BRIERE (2026) somanybits.com</div>
+            <div id="theme-selector">
+                <label id="theme-label">THEME:</label>
+                <select id="theme-select">
+                    <option value="amiga">Amiga (default)</option>
+                    <option value="dark">Dark</option>
+                    <option value="light">Light</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="bluewave">Blue Wave</option>
+                    <option value="greenforest">Green Forest</option>
+                    <option value="orange">Orange</option>
+                    <option value="purple">Purple</option>
+                    <option value="gray">Gray</option>
+                    <option value="bluelight">Blue Light</option>
+                </select>
+            </div>
+        </header>
+
+        <main>
+            <div id="pattern-container">
+                <canvas id="pattern-canvas"></canvas>
+                <div id="position-display">Pos: --/-- | Pat: -- | Row: --</div>
+            </div>
+
+            <div id="patterns-container">
+                <div id="patterns-header">PATTERNS</div>
+                <div id="patterns-list"></div>
+            </div>
+
+            <div id="instruments-container">
+                <div id="instruments-header">INSTRUMENTS</div>
+                <div id="instruments-list"></div>
+                <div id="sample-viewer">
+                    <canvas id="sample-canvas"></canvas>
+                    <div id="sample-viewer-controls">
+                        <button id="sample-play-btn" class="sample-btn" title="Play sample">▶</button>
+                        <button id="sample-stop-btn" class="sample-btn" title="Stop sample">■</button>
+                        <button id="sample-loop-btn" class="sample-btn active" title="Toggle loop">⟳</button>
+                        <span id="sample-name-display">No sample selected</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="visualization-container">
+                <div id="vu-meters"></div>
+                <canvas id="visualization-canvas"></canvas>
+                <div id="vis-mode-label">SPECTRUM</div>
+            </div>
+
+            <div id="synth-popup" class="synth-popup">
+                <div class="synth-popup-header">
+                    <span>SYNTH KEYBOARD</span>
+                    <button id="synth-popup-close" class="synth-popup-close">✖</button>
+                </div>
+                <div class="synth-popup-body">
+                    <div class="synth-toolbar">
+                        <label class="synth-octaves-label">OCTAVES:</label>
+                        <select id="synth-octaves-select">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                        </select>
+                        <button id="synth-mode-toggle" class="synth-mode-btn">MODE: KEYS</button>
+                        <span class="synth-hint">⇄ glisser pour naviguer</span>
+                    </div>
+                    <canvas id="keyboard-canvas"></canvas>
+                    <div class="synth-legend">
+                        <span class="legend-item" style="color:#ff6464;">● CH1</span>
+                        <span class="legend-item" style="color:#64ff64;">● CH2</span>
+                        <span class="legend-item" style="color:#6464ff;">● CH3</span>
+                        <span class="legend-item" style="color:#ffff64;">● CH4</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div id="controls">
+                <button id="load-btn" class="control-btn">LOAD</button>
+                <button id="play-btn" class="control-btn">PLAY</button>
+                <button id="pause-btn" class="control-btn">PAUSE</button>
+                <button id="stop-btn" class="control-btn">STOP</button>
+                <label class="volume-label">VOL:</label>
+                <input type="range" id="volume-slider" min="0" max="100" value="80">
+                <div id="tempo-controls">
+                    <button id="speed-minus" class="tempo-btn" title="Vitesse -1">-</button>
+                    <span id="speed-display" class="tempo-display">SPD: 6</span>
+                    <button id="speed-plus" class="tempo-btn" title="Vitesse +1">+</button>
+                    <button id="tempo-minus" class="tempo-btn" title="Tempo -1">-</button>
+                    <span id="tempo-display" class="tempo-display">TMP: 125</span>
+                    <button id="tempo-plus" class="tempo-btn" title="Tempo +1">+</button>
+                </div>
+                <button id="keyboard-toggle" class="control-btn" title="Afficher le clavier de synthé">🎹</button>
+                <input type="file" id="file-input" accept=".mod,.MOD" hidden>
+            </div>
+        </footer>
+    </div>
+
+    <script src="js/modplayer.js"></script>
+    <script src="js/visualizer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
