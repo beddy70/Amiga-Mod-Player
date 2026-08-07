@@ -11,6 +11,14 @@ class ModPlayerApp {
         this.synthKeyboard = new SynthKeyboard();
         this.synthKeyboard.setPlayer(this.player);
 
+        // Alimenter en permanence le visualiseur (VU mètres + spectre) avec les
+        // données audio. Défini ici (et non dans play()) pour que le spectre et
+        // les VU mètres fonctionnent AUSSI en mode pas-à-pas, où la lecture
+        // classique (play) n'est pas active.
+        this.player.onAudioData = (left, right, levels, channelBuffers) => {
+            this.visualizer.setAudioData(left, right, levels, channelBuffers);
+        };
+
         this.titleDisplay = document.getElementById('title-display');
         this.infoDisplay = document.getElementById('info-display');
         this.positionDisplay = document.getElementById('position-display');
@@ -532,10 +540,6 @@ class ModPlayerApp {
         }
 
         if (this.isPlaying) return;
-
-        this.player.onAudioData = (left, right, levels, channelBuffers) => {
-            this.visualizer.setAudioData(left, right, levels, channelBuffers);
-        };
 
         this.player.onStateChange = (state) => {
             this.isPlaying = state.playing;
