@@ -1331,6 +1331,41 @@ class ModPlayer {
     }
 
     /**
+     * Mode pas-à-pas : avance d'une ligne en appliquant EXACTEMENT les mêmes
+     * règles que la lecture normale d'une chanson (pattern break 0xD,
+     * position jump 0xB, pattern loop E6x, fin de pattern à 64 lignes,
+     * changement de position dans la liste d'ordre).
+     * Contrairement à jumpToRow(), cette méthode ne réinitialise PAS les
+     * flags de saut (breakRow, jumpPosition...) définis par la ligne
+     * courante, ce qui permet de respecter les transitions de la chanson.
+     */
+    stepForward() {
+        // Activer le mode pas-à-pas : le moteur audio s'arrêtera après la ligne
+        this.stepMode = true;
+
+        // Si le moteur audio n'est pas encore actif, l'initialiser
+        // pour que le pas-à-pas produise du son même sans play().
+        if (!this.scriptProcessor) {
+            this.initAudio();
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            this.startAudioRendering();
+        }
+
+        // Avancer d'une ligne avec les règles de lecture normales.
+        // nextRow() applique les flags de la ligne courante (pattern break,
+        // position jump, pattern loop) OU incrémente currentRow et gère la
+        // fin de pattern (>= 64 → passage à la position suivante).
+        this.nextRow();
+
+        // Réinitialiser le compteur de ticks pour que la nouvelle ligne soit
+        // jouée intégralement depuis le début.
+        this.currentTick = 0;
+        this.tickSampleCount = 0;
+    }
+
+    /**
      * Retourner la liste d'ordre (positions -> numéro de pattern)
      */
     getPatternOrder() {

@@ -241,11 +241,12 @@ class ModPlayerApp {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (!this.player.getNumPatterns()) return;
-                const nextRow = this.player.getCurrentRow() + 1;
-                if (nextRow < 64) {
-                    this.player.jumpToRow(nextRow);
-                    this.stepNavigation(nextRow);
-                }
+                // Avance d'une ligne en suivant EXACTEMENT les règles de
+                // lecture d'une chanson (pattern break, position jump,
+                // pattern loop, fin de pattern, changement de position...).
+                this.player.stepForward();
+                const nextRow = this.player.getCurrentRow();
+                this.stepNavigation(nextRow);
                 return;
             }
             if (e.key === 'ArrowUp') {
@@ -1263,10 +1264,17 @@ class ModPlayerApp {
     /**
      * Navigation pas à pas : met à jour le popup avec la note de la ligne courante.
      * Utilise le canal du popup déjà ouvert, sinon le premier canal avec une note.
+     * Fait aussi défiler la vue pour que la ligne courante reste visible en bas
+     * du pattern (même comportement que la lecture).
      * @param {number} row - Nouvelle ligne courante
      */
     stepNavigation(row) {
         if (!this.player.getNumPatterns()) return;
+
+        // Faire défiler la vue pour suivre la ligne courante :
+        // la ligne courante reste sur la dernière ligne visible
+        // (même logique que le défilement en lecture)
+        this.scrollRow = Math.max(0, row - this.visibleRows + 1);
 
         const patternData = this.player.getPatternData(this.player.getCurrentPattern());
         if (!patternData) return;
