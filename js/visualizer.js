@@ -149,22 +149,26 @@ class SampleViewer {
         }
 
         // Dessiner la forme d'onde (oscilloscope)
-        // On échantillonne le signal pour chaque pixel de largeur
-        const samplesPerPixel = Math.max(1, Math.floor(len / width));
-        const numPoints = Math.min(width, Math.ceil(len / samplesPerPixel));
+        // On étire TOUJOURS le sample sur toute la largeur du canvas,
+        // quel que soit sa taille réelle. Si le sample est plus court que
+        // la largeur, chaque échantillon occupe plusieurs pixels ; s'il est
+        // plus long, on regroupe plusieurs échantillons par pixel (min/max).
+        const samplesPerPixel = Math.max(1, Math.ceil(len / width));
+        const numPoints = Math.min(width, len);
 
         ctx.strokeStyle = '#64c864';
         ctx.lineWidth = 1;
         ctx.beginPath();
 
         for (let x = 0; x < numPoints; x++) {
-            const startIdx = x * samplesPerPixel;
-            const endIdx = Math.min(startIdx + samplesPerPixel, len);
+            const startIdx = Math.floor(x * len / width);
+            const endIdx = Math.max(startIdx + 1, Math.floor((x + 1) * len / width));
+            const clampedEnd = Math.min(endIdx, len);
 
             // Trouver min et max sur cette fenêtre
             let minVal = 1;
             let maxVal = -1;
-            for (let i = startIdx; i < endIdx; i++) {
+            for (let i = startIdx; i < clampedEnd; i++) {
                 const v = data[i];
                 if (v < minVal) minVal = v;
                 if (v > maxVal) maxVal = v;
@@ -1160,6 +1164,7 @@ class Visualizer {
         this.vuLevels = [0, 0, 0, 0];
         this.vuPeaks = [0, 0, 0, 0];
         this.vuPeakTimes = [0, 0, 0, 0];
+        this.vuTargets = [0, 0, 0, 0];  // Niveaux cibles réels des canaux
 
         // Spectrum colors (rainbow)
         this.spectrumColors = [];
@@ -1202,29 +1207,27 @@ class Visualizer {
 
     buildVUMeters() {
         this.vuMetersContainer.innerHTML = '';
-        this.vuBars = [];
-        this.vuPeakEls = [];
+        this.vuCanvases = [];   // Canvas pour les aiguilles
+        this.vuPeakEls = [];    // Points de peak (LED)
         const labels = ['CH1', 'CH2', 'CH3', 'CH4'];
-        const colors = ['#ff6464', '#64ff64', '#6464ff', '#ffff64'];
 
         for (let i = 0; i < 4; i++) {
             const meter = document.createElement('div');
             meter.className = 'vu-meter';
 
-            const barContainer = document.createElement('div');
-            barContainer.className = 'vu-bar-container';
+            // Canvas pour l'aiguille analogique
+            const needleCanvas = document.createElement('canvas');
+            needleCanvas.className = 'vu-needle-canvas';
+            needleCanvas.width = 80;
+            needleCanvas.height = 50;
 
-            const bar = document.createElement('div');
-            bar.className = 'vu-bar';
-            bar.style.height = '0%';
-
+            // LED de peak (petit point au-dessus de l'aiguille)
             const peak = document.createElement('div');
             peak.className = 'vu-peak';
-            peak.style.bottom = '0%';
+            peak.style.display = 'none';
 
-            barContainer.appendChild(bar);
-            barContainer.appendChild(peak);
-            meter.appendChild(barContainer);
+            meter.appendChild(needleCanvas);
+            meter.appendChild(peak);
 
             const label = document.createElement('div');
             label.className = `vu-label ch-${i}`;
@@ -1232,9 +1235,158 @@ class Visualizer {
             meter.appendChild(label);
 
             this.vuMetersContainer.appendChild(meter);
-            this.vuBars.push(bar);
+            this.vuCanvases.push(needleCanvas);
             this.vuPeakEls.push(peak);
         }
+
+        // Étirer les canvas à la largeur réelle
+        this.resizeVUCanvases();
+    }
+
+    /**
+     * Redimensionne les canvas des VU meters à la largeur réelle du conteneur
+     */
+    resizeVUCanvases() {
+        if (!this.vuCanvases) return;
+        for (let i = 0; i < this.vuCanvases.length; i++) {
+            const canvas = this.vuCanvases[i];
+            const containerWidth = canvas.parentElement.clientWidth;
+            if (canvas.width !== containerWidth) {
+                canvas.width = containerWidth;
+            }
+            if (canvas.height !== 50) {
+                canvas.height = 50;
+            }
+            // Redessiner immédiatement
+            this.drawNeedle(i);
+        }
+    }
+
+    /**
+     * Dessine un VU meter analogique avec aiguille pour le canal donné.
+     * Style rétro : fond sombre, échelle en arc, graduation, zones
+     * vert/jaune/rouge, aiguille pivotante selon le niveau.
+     */
+    drawNeedle(chIndex) {
+        const canvas = this.vuCanvases[chIndex];
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Coordonnées du pivot de l'aiguille (bas centre)
+        const pivotX = w / 2;
+        const pivotY = h - 4;
+        const needleLen = Math.min(w / 2 - 3, h - 8);
+
+        // Angle de l'aiguille : un VU meter analogique classique pivote
+        // de gauche à droite en passant par le HAUT du cadran :
+        //   -135° (gauche, niveau 0)
+        //    -90° (haut, niveau 0.5)
+        //    -45° (droite, niveau 1)
+        // En canvas, y va vers le bas, donc ces angles négatifs pointent
+        // correctement vers le haut (-90° = haut, -135° = haut-gauche, -45° = haut-droite)
+        const angleMin = -135 * Math.PI / 180;
+        const angleMax = -45 * Math.PI / 180;
+        const level = Math.min(1, Math.max(0, this.vuLevels[chIndex] || 0));
+        const angle = angleMin + (angleMax - angleMin) * level;
+
+        // --- Fond (cadran) ---
+        const bgColor = getComputedStyle(document.body).getPropertyValue('--canvas-bg-deep').trim() || '#0a0a14';
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, w, h);
+
+        // Cadran arrondi (fond légèrement plus clair)
+        ctx.fillStyle = 'rgba(30, 30, 50, 0.8)';
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, needleLen + 2, Math.PI, 2 * Math.PI);
+        ctx.closePath();
+        ctx.fill();
+
+        // --- Échelle (arc) ---
+        const gradRadius = needleLen - 4;
+        const numTicks = 11; // 0..10 graduations
+
+        for (let t = 0; t <= numTicks; t++) {
+            const tickLevel = t / numTicks;
+            const tickAngle = angleMin + (angleMax - angleMin) * tickLevel;
+            const x1 = pivotX + Math.cos(tickAngle) * (gradRadius - 3);
+            const y1 = pivotY + Math.sin(tickAngle) * (gradRadius - 3);
+            const x2 = pivotX + Math.cos(tickAngle) * (gradRadius + 2);
+            const y2 = pivotY + Math.sin(tickAngle) * (gradRadius + 2);
+
+            // Couleur des graduations selon la zone
+            let tickColor = '#64ff64';          // vert
+            if (tickLevel > 0.6 && tickLevel <= 0.85) tickColor = '#ffff64';  // jaune
+            if (tickLevel > 0.85) tickColor = '#ff6464';                      // rouge
+
+            ctx.strokeStyle = tickColor;
+            ctx.lineWidth = t % 5 === 0 ? 2 : 1;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        // --- Zones colorées (vert, jaune, rouge) en arc ---
+        const zoneColors = [
+            { from: 0.0, to: 0.6, color: 'rgba(100, 255, 100, 0.15)' },
+            { from: 0.6, to: 0.85, color: 'rgba(255, 255, 100, 0.2)' },
+            { from: 0.85, to: 1.0, color: 'rgba(255, 100, 100, 0.25)' }
+        ];
+        for (const zone of zoneColors) {
+            const a1 = angleMin + (angleMax - angleMin) * zone.from;
+            const a2 = angleMin + (angleMax - angleMin) * zone.to;
+            ctx.fillStyle = zone.color;
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, gradRadius - 2, a1, a2);
+            ctx.lineTo(pivotX + Math.cos(a2) * (gradRadius - 10), pivotY + Math.sin(a2) * (gradRadius - 10));
+            ctx.lineTo(pivotX + Math.cos(a1) * (gradRadius - 10), pivotY + Math.sin(a1) * (gradRadius - 10));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // --- Aiguille ---
+        const [cr, cg, cb] = this.channelColors[chIndex];
+        const tipX = pivotX + Math.cos(angle) * needleLen;
+        const tipY = pivotY + Math.sin(angle) * needleLen;
+
+        // Ombre de l'aiguille
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(pivotX, pivotY);
+        ctx.lineTo(tipX + 1, tipY + 1);
+        ctx.stroke();
+
+        // Aiguille principale (blanche avec pointe colorée)
+        const grad = ctx.createLinearGradient(pivotX, pivotY, tipX, tipY);
+        grad.addColorStop(0, '#888');
+        grad.addColorStop(0.7, '#ddd');
+        grad.addColorStop(1, `rgb(${cr},${cg},${cb})`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pivotX, pivotY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Pivot (petit cercle)
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(pivotX, pivotY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Label du niveau (petit texte en bas)
+        const dbVal = Math.round(level * 100);
+        ctx.fillStyle = '#aaaac8';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(dbVal).padStart(3, '0'), pivotX, h - 2);
+        ctx.textAlign = 'left';
     }
 
     setAudioData(leftBuffer, rightBuffer, channelLevels, channelBuffers) {
@@ -1246,36 +1398,84 @@ class Visualizer {
         }
 
         // Update VU levels
+        // Les aiguilles montent IMMÉDIATEMENT avec le niveau (attaque rapide),
+        // mais redescendent DOUCEMENT quand le volume chute, comme un
+        // condensateur qui se décharge (retour progressif vers la cible).
         if (channelLevels) {
-            const now = performance.now();
             for (let i = 0; i < 4; i++) {
-                this.vuLevels[i] = channelLevels[i] || 0;
-                if (this.vuLevels[i] > this.vuPeaks[i]) {
+                const target = channelLevels[i] || 0;
+                this.vuTargets[i] = target;
+
+                // Attaque rapide : monte instantanément à la cible
+                if (target >= this.vuLevels[i]) {
+                    this.vuLevels[i] = target;
+                }
+                // Pas de descente ici : le decay doux dans updateVUMeters
+                // s'occupe de ramener l'aiguille vers la cible progressivement
+
+                // Les peaks suivent l'amplitude en temps réel
+                if (this.vuLevels[i] >= this.vuPeaks[i]) {
                     this.vuPeaks[i] = this.vuLevels[i];
-                    this.vuPeakTimes[i] = now;
-                } else if (now - this.vuPeakTimes[i] > 1000) {
-                    this.vuPeaks[i] *= 0.95;
+                } else {
+                    // Le peak redescend en suivant le niveau, jamais en dessous
+                    this.vuPeaks[i] = Math.max(this.vuLevels[i], this.vuPeaks[i] * 0.95);
                 }
             }
         }
 
-        // Update spectrum analysis
-        this.updateSpectrum();
-
-        // Update VU meter bars
-        this.updateVUMeters();
+        // Le rendu et le decay des aiguilles sont gérés dans la boucle d'animation
+        // (updateVUMeters appelé chaque frame dans main.js) pour que le
+        // "retour condensateur" reste fluide même sans nouveau flux audio.
     }
 
     updateVUMeters() {
+        // Dessiner les aiguilles analogiques
         for (let i = 0; i < 4; i++) {
-            const level = Math.min(1, this.vuLevels[i]);
-            const peak = Math.min(1, this.vuPeaks[i]);
-            this.vuBars[i].style.height = `${level * 100}%`;
-            this.vuPeakEls[i].style.bottom = `${peak * 100}%`;
+            // Decay doux type "condensateur" : si le niveau affiché est
+            // au-dessus de la cible réelle, on le fait redescendre
+            // progressivement avec une décroissance exponentielle.
+            // Le facteur 0.98 par frame (à 60fps) donne une chute d'environ
+            // 2 secondes de 100% à ~10 %, comme la décharge d'un condensateur RC.
+            // Comme l'attaque est instantanée dans setAudioData, l'aiguille
+            // monte vite au son, puis redescend lentement en silence.
+            if (this.vuLevels[i] > this.vuTargets[i]) {
+                this.vuLevels[i] = Math.max(this.vuTargets[i], this.vuLevels[i] * 0.98);
+            }
 
-            // Add decay
-            this.vuLevels[i] *= 0.85;
+            this.drawNeedle(i);
+
+            // LED de peak : allumée si le niveau est fort, éteinte sinon
+            if (this.vuPeakEls[i]) {
+                const peakActive = this.vuPeaks[i] > 0.85;
+                this.vuPeakEls[i].style.display = peakActive ? 'block' : 'none';
+            }
         }
+    }
+
+    /**
+     * Calcule la couleur d'une barre VU en fonction du niveau (0..1).
+     * La couleur du canal est teintée par la couleur du niveau :
+     *   - niveau faible  → teinte verte
+     *   - niveau moyen   → teinte jaune
+     *   - niveau fort    → teinte rouge
+     * La couleur du canal est interpolée avec la couleur du niveau
+     * pour garder chaque canal identifiable tout en reflétant son
+     * amplitude réelle en temps réel.
+     */
+    levelToColor(level, cr, cg, cb) {
+        // Teinte selon le niveau (HSB) : 120° (vert) → 0° (rouge)
+        // On garde une saturation élevée et une luminosité moyenne pour
+        // être bien visible sur fond sombre.
+        const hue = 120 * (1 - level); // 120 = vert, 0 = rouge
+        const [hr, hg, hb] = this.hslToRgb(hue / 360, 0.9, 0.55);
+
+        // Interpoler 70% couleur de niveau + 30% couleur du canal
+        // pour garder l'identité du canal tout en montrant le niveau
+        return [
+            Math.round(hr * 0.7 + cr * 0.3),
+            Math.round(hg * 0.7 + cg * 0.3),
+            Math.round(hb * 0.7 + cb * 0.3)
+        ];
     }
 
     updateSpectrum() {
@@ -1327,8 +1527,11 @@ class Visualizer {
                         }
                     }
                     // Gain normalisé + plafond à 1.0 pour ne pas dépasser la hauteur
-                    const newVal = Math.min(1.0, (sum / chSamplesPerBand) * this.channelGains[ch]);
-                    this.channelSpectrums[ch][i] = Math.max(this.prevChannelSpectrums[ch][i] * 0.8, newVal);
+                    const newVal = Math.min(0.95, (sum / chSamplesPerBand) * this.channelGains[ch]);
+                    // Si le niveau a baissé, laisscer redescendre les barres SANS superposition :
+                    // on prend la valeur directe (pas de max avec l'ancienne).
+                    // Un léger lissage (50% ancien + 50% nouveau) évite les sauts brutaux.
+                    this.channelSpectrums[ch][i] = (this.prevChannelSpectrums[ch][i] + newVal) * 0.5;
                     this.prevChannelSpectrums[ch][i] = this.channelSpectrums[ch][i];
                 }
             }
@@ -1338,6 +1541,7 @@ class Visualizer {
     reset() {
         this.vuLevels = [0, 0, 0, 0];
         this.vuPeaks = [0, 0, 0, 0];
+        this.vuTargets = [0, 0, 0, 0];
         this.spectrum.fill(0);
         this.prevSpectrum.fill(0);
         for (let ch = 0; ch < 4; ch++) {
@@ -1414,7 +1618,12 @@ class Visualizer {
                 barHeight = Math.min(barHeight, barAreaHeight);
 
                 const x = i * barWidth;
-                const y = baseY - barHeight;
+                // Clamp y pour ne jamais sortir de la section (même en valeurs extrêmes)
+                let y = baseY - barHeight;
+                if (y < sectionTop + topPadding) {
+                    y = sectionTop + topPadding;
+                    barHeight = baseY - y;
+                }
 
                 // Bar avec dégradé dans la couleur du canal
                 const grad = ctx.createLinearGradient(x, baseY, x, y);

@@ -84,9 +84,12 @@ class ModPlayer {
         this.patternDelay = 0;
         this.patternDelayCount = 0;
 
-        // Pattern loop (E6x)
-        this.patternLoopRow = 0;
-        this.patternLoopCount = 0;
+        // Pattern loop (E6x) - chaque canal a son propre loopstart et compteur
+        // (les boucles E6x sont par canal dans ProTracker, pas globales)
+        // Taille 8 = nombre max de canaux supportés (4, 6 ou 8 selon le MOD)
+        this.patternLoopRow = new Array(8).fill(0);
+        this.patternLoopCount = new Array(8).fill(0);
+        this.skipRowProcessing = false;
 
         // Audio
         this.audioContext = null;
@@ -97,12 +100,19 @@ class ModPlayer {
         this.volumeLevel = 0.8;
         this.audioQueue = [];
 
+        // Mode pas-à-pas (step) : la lecture avance normalement mais
+        // s'arrête après la ligne courante (pas de nextRow automatique)
+        this.stepMode = false;
+
         // Callbacks
         this.onAudioData = null;
         this.onStateChange = null;
 
         // Channel levels for VU meters
         this.channelLevels = new Float32Array(4);
+
+        // Channel mute state (true = canal muet)
+        this.channelMuted = [false, false, false, false];
 
         // Note names for display
         this.NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
@@ -369,6 +379,9 @@ class ModPlayer {
             this.audioContext.resume();
         }
 
+        // Sortir du mode pas-à-pas : la lecture continue normalement
+        this.stepMode = false;
+
         this.playing = true;
         this.paused = false;
 
@@ -386,8 +399,9 @@ class ModPlayer {
         this.pBreakFlag = false;
         this.patternDelay = 0;
         this.patternDelayCount = 0;
-        this.patternLoopRow = 0;
-        this.patternLoopCount = 0;
+        this.patternLoopRow.fill(0);
+        this.patternLoopCount.fill(0);
+        this.skipRowProcessing = false;
 
         for (const ch of this.channels) {
             ch.reset();
@@ -423,7 +437,10 @@ class ModPlayer {
             const outputL = event.outputBuffer.getChannelData(0);
             const outputR = event.outputBuffer.getChannelData(1);
 
-            if (!this.playing || this.paused) {
+            // En mode step (pas à pas), on entend le son mais la lecture n'avance pas
+            if (this.stepMode && !this.playing) {
+                // Laisser la génération audio se faire normalement
+            } else if (!this.playing || this.paused) {
                 outputL.fill(0);
                 outputR.fill(0);
                 return;
@@ -442,7 +459,9 @@ class ModPlayer {
                 let left = 0, right = 0;
 
                 for (let ch = 0; ch < this.numChannels; ch++) {
-                    const sample = this.mixChannel(this.channels[ch]);
+                    // Si le canal est muet, on ne le mixe pas (silence total)
+                    const muted = ch < 4 && this.channelMuted[ch];
+                    const sample = muted ? 0 : this.mixChannel(this.channels[ch]);
 
                     if (ch < 4) {
                         channelBuffers[ch][i] = sample;
@@ -476,11 +495,14 @@ class ModPlayer {
             }
 
             // Calculate RMS levels for VU meters
+            // Amplitude réelle normalisée (0..1) : le RMS du sample direct
+            // (pas de conversion en dB qui déforme la réponse)
             for (let ch = 0; ch < Math.min(4, this.numChannels); ch++) {
                 if (rmsSamples[ch] > 0) {
                     const rms = Math.sqrt(rmsSum[ch] / rmsSamples[ch]);
-                    const db = 20 * Math.log10(Math.max(rms, 0.00001) / 0.5);
-                    this.channelLevels[ch] = Math.max(0, Math.min(1, (db + 48) / 48));
+                    // Normalisation : 0.5 = niveau plein échelle (~ -6dBFS)
+                    // On multiplie par 2 pour que le max RMS (0.5) atteigne 1.0
+                    this.channelLevels[ch] = Math.min(1, rms * 2);
                 } else {
                     this.channelLevels[ch] = 0;
                 }
@@ -561,6 +583,17 @@ class ModPlayer {
         this.currentTick++;
 
         if (this.currentTick >= this.speed) {
+            // Mode pas-à-pas : on reste sur la ligne courante sans avancer.
+            // Les effets continuent de tourner mais nextRow() n'est pas appelé.
+            if (this.stepMode && !this.playing) {
+                this.currentTick = this.speed - 1;
+                // Les effets du dernier tick s'appliquent encore
+                for (let ch = 0; ch < this.numChannels; ch++) {
+                    this.processEffects(ch);
+                }
+                return;
+            }
+
             this.currentTick = 0;
 
             // Pattern delay (EEx)
@@ -587,6 +620,9 @@ class ModPlayer {
     }
 
     nextRow() {
+        // Reset du flag de saut de boucle E6 (la ligne loopstart sera jouée normalement)
+        this.skipRowProcessing = false;
+
         // Handle pattern break / position jump
         if (this.posJumpAssert || this.pBreakFlag) {
             const prevPosition = this.currentPosition;
@@ -607,8 +643,8 @@ class ModPlayer {
             this.posJumpAssert = false;
             this.pBreakFlag = false;
             if (this.currentPosition !== prevPosition) {
-                this.patternLoopRow = 0;
-                this.patternLoopCount = 0;
+                this.patternLoopRow.fill(0);
+                this.patternLoopCount.fill(0);
             }
         } else {
             this.currentRow++;
@@ -618,8 +654,8 @@ class ModPlayer {
                 if (this.currentPosition >= this.songLength) {
                     this.currentPosition = this.restartPosition;
                 }
-                this.patternLoopRow = 0;
-                this.patternLoopCount = 0;
+                this.patternLoopRow.fill(0);
+                this.patternLoopCount.fill(0);
             }
         }
 
@@ -627,6 +663,12 @@ class ModPlayer {
     }
 
     processRow() {
+        // Si un saut de boucle (E6y) a été demandé, ne pas traiter les autres canaux
+        if (this.skipRowProcessing) {
+            this.skipRowProcessing = false;
+            return;
+        }
+
         const pattern = this.patterns[this.patternOrder[this.currentPosition]];
 
         for (let ch = 0; ch < this.numChannels; ch++) {
@@ -637,6 +679,9 @@ class ModPlayer {
 
             const note = pattern[this.currentRow][ch];
             this.processNote(ch, note);
+
+            // Si l'effet E6y a déclenché un saut de boucle, arrêter le traitement
+            if (this.skipRowProcessing) break;
         }
     }
 
@@ -645,6 +690,14 @@ class ModPlayer {
         const effect = note.effect;
         const param = note.effectParam;
         const x = (param >> 4) & 0x0F;
+        const y = param & 0x0F;
+
+        // Si un E6y (Pattern Loop) doit déclencher un saut immédiat,
+        // ne pas jouer la note de cette ligne (on saute directement au loopstart)
+        if (effect === 0xE && x === 0x6 && y > 0 && this.patternLoopCount[chNum] < y) {
+            this.processEffectTick0(chNum, note);
+            return;
+        }
 
         // If effect ED (Note Delay), don't trigger note at tick 0
         const hasNoteDelay = (effect === 0xE && x === 0xD);
@@ -753,7 +806,7 @@ class ModPlayer {
                 break;
 
             case 0xE: // Extended
-                this.processExtendedTick0(ch, x, y);
+                this.processExtendedTick0(ch, chNum, x, y);
                 break;
 
             case 0xF: // Set speed/tempo
@@ -769,7 +822,7 @@ class ModPlayer {
         }
     }
 
-    processExtendedTick0(ch, x, y) {
+    processExtendedTick0(ch, chNum, x, y) {
         switch (x) {
             case 0x1: // Fine portamento up
                 ch.period -= y;
@@ -795,24 +848,35 @@ class ModPlayer {
                 ch.finetune = y;
                 break;
 
-            case 0x6: // Pattern loop
+            case 0x6: // Pattern loop (E60 = loopstart, E6y = boucle y fois)
                 if (y === 0) {
-                    this.patternLoopRow = this.currentRow;
+                    // E60 : définir le point de départ de la boucle (par canal)
+                    this.patternLoopRow[chNum] = this.currentRow;
                 } else {
-                    if (this.patternLoopCount === 0) {
-                        this.patternLoopCount = y;
-                        this.breakRow = this.patternLoopRow;
-                        this.pBreakFlag = true;
-                        this.jumpPosition = this.currentPosition;
-                        this.posJumpAssert = true;
+                    // E6y : "Jump to loop y times before playing on"
+                    // Comportement ProTracker :
+                    //   - E60 sur la ligne n définit le loopstart du canal
+                    //   - E6N sur la ligne n+1 : sauter IMMÉDIATEMENT à n (sans jouer n+1),
+                    //     N fois au total, puis continuer normalement n+1, n+2, ...
+                    // Exemple : E61 → un seul saut → on revient à n, on rejoue n,
+                    // puis on continue n+1, n+2, ...
+                    // IMPORTANT : le loopstart est PAR CANAL (ProTracker).
+                    // Chaque canal a son propre E60 → son propre point de retour.
+                    // Les boucles (ex: E60 CH1 et E60 CH3) ne se mélangent jamais.
+                    if (this.patternLoopCount[chNum] < y) {
+                        // Encore des sauts à effectuer : incrémenter le compteur
+                        this.patternLoopCount[chNum]++;
+
+                        // Saut immédiat au loopstart :
+                        // - Ne pas jouer la ligne courante (skipRowProcessing)
+                        // - currentRow = loopstart - 1, le prochain row++ donnera loopstart
+                        // - currentTick = speed pour déclencher immédiatement nextRow()
+                        this.skipRowProcessing = true;
+                        this.currentRow = this.patternLoopRow[chNum] - 1;
+                        this.currentTick = this.speed;
                     } else {
-                        this.patternLoopCount--;
-                        if (this.patternLoopCount > 0) {
-                            this.breakRow = this.patternLoopRow;
-                            this.pBreakFlag = true;
-                            this.jumpPosition = this.currentPosition;
-                            this.posJumpAssert = true;
-                        }
+                        // Tous les sauts sont effectués : remettre le compteur à zéro
+                        this.patternLoopCount[chNum] = 0;
                     }
                 }
                 break;
@@ -1223,8 +1287,46 @@ class ModPlayer {
         this.pBreakFlag = false;
         this.patternDelay = 0;
         this.patternDelayCount = 0;
-        this.patternLoopRow = 0;
-        this.patternLoopCount = 0;
+        this.patternLoopRow.fill(0);
+        this.patternLoopCount.fill(0);
+        this.skipRowProcessing = false;
+        this.processRow();
+    }
+
+    /**
+     * Sauter à une ligne précise du pattern courant
+     * @param {number} row - Numéro de ligne (0-63)
+     */
+    jumpToRow(row) {
+        if (row < 0 || row >= 64) return;
+        this.currentRow = row;
+        this.currentTick = 0;
+        this.tickSampleCount = 0;
+        this.breakRow = -1;
+        this.jumpPosition = -1;
+        this.posJumpAssert = false;
+        this.pBreakFlag = false;
+        this.patternDelay = 0;
+        this.patternDelayCount = 0;
+        this.patternLoopRow.fill(0);
+        this.patternLoopCount.fill(0);
+        this.skipRowProcessing = false;
+
+        // Activer le mode pas-à-pas : on entend le son mais la
+        // lecture n'avance pas automatiquement après la ligne.
+        // (désactivé par play() ou stop())
+        this.stepMode = true;
+
+        // Si le moteur audio n'est pas encore actif, l'initialiser
+        // pour que le pas-à-pas produise du son même sans play().
+        if (!this.scriptProcessor) {
+            this.initAudio();
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+            this.startAudioRendering();
+        }
+
         this.processRow();
     }
 
@@ -1255,6 +1357,9 @@ class ModPlayer {
         this.paused = false;
         this.audioQueue = [];
 
+        // Sortir du mode pas-à-pas
+        this.stepMode = false;
+
         // Déconnecter le processeur audio
         if (this.scriptProcessor) {
             this.scriptProcessor.disconnect();
@@ -1284,6 +1389,36 @@ class ModPlayer {
         if (tempo > 255) tempo = 255;
         this.tempo = tempo;
         this.calculateSamplesPerTick();
+    }
+
+    /**
+     * Active/désactive le mute d'un canal
+     * @param {number} channel - Index du canal (0-3)
+     */
+    toggleChannelMute(channel) {
+        if (channel < 0 || channel >= 4) return;
+        this.channelMuted[channel] = !this.channelMuted[channel];
+        return this.channelMuted[channel];
+    }
+
+    /**
+     * Définit l'état muet d'un canal
+     * @param {number} channel - Index du canal (0-3)
+     * @param {boolean} muted - true = muet, false = audible
+     */
+    setChannelMuted(channel, muted) {
+        if (channel < 0 || channel >= 4) return;
+        this.channelMuted[channel] = muted;
+    }
+
+    /**
+     * Retourne si un canal est muet
+     * @param {number} channel - Index du canal (0-3)
+     * @returns {boolean}
+     */
+    isChannelMuted(channel) {
+        if (channel < 0 || channel >= 4) return false;
+        return this.channelMuted[channel];
     }
 
     getSpeed() {
