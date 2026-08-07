@@ -19,6 +19,18 @@ class ModPlayerApp {
             this.visualizer.setAudioData(left, right, levels, channelBuffers);
         };
 
+        // Connecter les potentiomètres de balance du visualiseur au player.
+        // Chaque slider renvoie sa valeur au player qui l'applique au mixage.
+        this.visualizer.onPanChange = (channel, pan) => {
+            this.player.setChannelPan(channel, pan);
+        };
+
+        // Bouton de réinitialisation des balances des canaux.
+        this.resetPanBtn = document.getElementById('reset-pan-btn');
+        this.resetPanBtn.addEventListener('click', () => {
+            this.visualizer.resetPans();
+        });
+
         this.titleDisplay = document.getElementById('title-display');
         this.infoDisplay = document.getElementById('info-display');
         this.positionDisplay = document.getElementById('position-display');

@@ -1181,6 +1181,98 @@ class Visualizer {
 
         // Build VU meters
         this.buildVUMeters();
+
+        // Charger les balances sauvegardées au prochain tick, pour laisser
+        // main.js définir onPanChange avant d'appliquer les valeurs au player.
+        requestAnimationFrame(() => this.loadPans());
+    }
+
+    // =========================================================================
+    // Sauvegarde / restauration des balances (localStorage + fallback cookie)
+    // =========================================================================
+
+    loadPans() {
+        let saved = null;
+
+        // Lire d'abord le cookie (source principale comme demandé)
+        const match = document.cookie.match(new RegExp('(?:^|; )modplayer_pans=([^;]*)'));
+        if (match) saved = decodeURIComponent(match[1]);
+
+        // Fallback : lire depuis localStorage si pas de cookie
+        if (!saved) {
+            try {
+                saved = localStorage.getItem('modplayer_pans');
+            } catch (e) {
+                saved = null;
+            }
+        }
+
+        if (saved) {
+            try {
+                const pans = JSON.parse(saved);
+                if (Array.isArray(pans) && pans.length === 4) {
+                    this.setPanValues(pans);
+                    for (let i = 0; i < 4; i++) {
+                        if (this.onPanChange) this.onPanChange(i, pans[i]);
+                    }
+                }
+            } catch (e) {
+                // Ignorer une sauvegarde invalide
+            }
+        }
+    }
+
+    savePans() {
+        const pans = this.getPanValues();
+        const data = JSON.stringify(pans);
+
+        // Écrire dans un cookie (durée de vie : 1 an)
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + 365);
+        document.cookie = `modplayer_pans=${encodeURIComponent(data)}; expires=${expiry.toUTCString()}; path=/`;
+
+        // Fallback : synchroniser aussi dans localStorage pour la robustesse
+        try {
+            localStorage.setItem('modplayer_pans', data);
+        } catch (e) {
+            // localStorage indisponible : le cookie suffit
+        }
+    }
+
+    getPanValues() {
+        if (!this.vuPanSliders) return [0, 1, 1, 0];
+        return this.vuPanSliders.map(s => s.value / 100);
+    }
+
+    setPanValues(pans) {
+        if (!this.vuPanSliders) return;
+        const defaults = [0, 100, 100, 0];
+        for (let i = 0; i < 4; i++) {
+            let val;
+            if (pans && typeof pans[i] === 'number') {
+                val = pans[i] * 100;
+            } else {
+                val = defaults[i];
+            }
+            this.vuPanSliders[i].value = Math.max(0, Math.min(100, Math.round(val)));
+            if (this.vuPanLabels[i]) {
+                const pan = this.vuPanSliders[i].value / 100;
+                this.vuPanLabels[i].textContent =
+                    pan < 0.45 ? 'L' :
+                    pan > 0.55 ? 'R' : 'C';
+            }
+        }
+    }
+
+    // Remet les balances aux valeurs par défaut Amiga
+    // (CH1/G, CH2/D, CH3/D, CH4/G) et les sauvegarde.
+    resetPans() {
+        this.setPanValues(null);
+        for (let i = 0; i < 4; i++) {
+            if (this.onPanChange) this.onPanChange(i, this.vuPanSliders[i].value / 100);
+        }
+        this.savePans();
+        if (this.onPansReset) this.onPansReset();
     }
 
     hslToRgb(h, s, l) {
@@ -1209,6 +1301,8 @@ class Visualizer {
         this.vuMetersContainer.innerHTML = '';
         this.vuCanvases = [];   // Canvas pour les aiguilles
         this.vuPeakEls = [];    // Points de peak (LED)
+        this.vuPanSliders = []; // Potentiomètres de balance
+        this.vuPanLabels = [];  // Labels de valeur balance
         const labels = ['CH1', 'CH2', 'CH3', 'CH4'];
 
         for (let i = 0; i < 4; i++) {
@@ -1219,7 +1313,7 @@ class Visualizer {
             const needleCanvas = document.createElement('canvas');
             needleCanvas.className = 'vu-needle-canvas';
             needleCanvas.width = 80;
-            needleCanvas.height = 50;
+            needleCanvas.height = 46;
 
             // LED de peak (petit point au-dessus de l'aiguille)
             const peak = document.createElement('div');
@@ -1234,9 +1328,55 @@ class Visualizer {
             label.textContent = labels[i];
             meter.appendChild(label);
 
+            // Potentiomètre de balance stéréo (L ----- C ----- R)
+            const panRow = document.createElement('div');
+            panRow.className = 'vu-pan-row';
+
+            const panSlider = document.createElement('input');
+            panSlider.type = 'range';
+            panSlider.className = `vu-pan ch-${i}`;
+            panSlider.min = 0;
+            panSlider.max = 100;
+            panSlider.step = 1;
+            panSlider.value = 50;
+            panSlider.title = 'Balance stéréo du canal';
+
+            // Valeurs par défaut style Amiga : CH1/G, CH2/D, CH3/D, CH4/G
+            // (slider 0 = gauche, 100 = droite, 50 = centre)
+            const defaultPan = [0, 100, 100, 0];
+            panSlider.value = defaultPan[i];
+
+            const panLabel = document.createElement('span');
+            panLabel.className = 'vu-pan-label';
+            // Libellé initial reflétant la valeur par défaut
+            const defPan = panSlider.value / 100;
+            panLabel.textContent =
+                defPan < 0.45 ? 'L' :
+                defPan > 0.55 ? 'R' : 'C';
+
+            const updatePanLabel = () => {
+                const pan = panSlider.value / 100;
+                panLabel.textContent =
+                    pan < 0.45 ? 'L' :
+                    pan > 0.55 ? 'R' : 'C';
+                if (this.onPanChange) {
+                    this.onPanChange(i, pan);
+                }
+                // Sauvegarder les balances à chaque changement
+                this.savePans();
+            };
+
+            panSlider.addEventListener('input', updatePanLabel);
+
+            panRow.appendChild(panSlider);
+            panRow.appendChild(panLabel);
+            meter.appendChild(panRow);
+
             this.vuMetersContainer.appendChild(meter);
             this.vuCanvases.push(needleCanvas);
             this.vuPeakEls.push(peak);
+            this.vuPanSliders.push(panSlider);
+            this.vuPanLabels.push(panLabel);
         }
 
         // Étirer les canvas à la largeur réelle
@@ -1244,7 +1384,9 @@ class Visualizer {
     }
 
     /**
-     * Redimensionne les canvas des VU meters à la largeur réelle du conteneur
+     * Redimensionne les canvas des VU meters à la largeur réelle du conteneur.
+     * La hauteur est fixée à 46px pour correspondre au CSS (aiguille analogique
+     * sur la grille 2×2 des 4 canaux, au-dessus du potentiomètre de balance).
      */
     resizeVUCanvases() {
         if (!this.vuCanvases) return;
@@ -1254,8 +1396,8 @@ class Visualizer {
             if (canvas.width !== containerWidth) {
                 canvas.width = containerWidth;
             }
-            if (canvas.height !== 50) {
-                canvas.height = 50;
+            if (canvas.height !== 46) {
+                canvas.height = 46;
             }
             // Redessiner immédiatement
             this.drawNeedle(i);
