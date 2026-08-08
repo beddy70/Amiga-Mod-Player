@@ -137,6 +137,29 @@
         </div>
         <div class="sample-popup-body">
             <canvas id="sample-popup-canvas"></canvas>
+            <!-- Barre d'outils : zoom + reset -->
+            <div id="sample-popup-zoombar">
+                <button id="sample-popup-zoom-out-btn" class="sample-btn" title="Zoom arrière">−</button>
+                <span id="sample-popup-zoom-display">100%</span>
+                <button id="sample-popup-zoom-in-btn" class="sample-btn" title="Zoom avant">+</button>
+                <button id="sample-popup-zoom-reset-btn" class="sample-btn" title="Réinitialiser le zoom">⟲</button>
+                <span id="sample-popup-zoom-hint">↔ molette = zoom · ⇄ clic-glisser = défilement</span>
+            </div>
+            <!-- Clavier de notes pour jouer le sample à différentes hauteurs -->
+            <div id="sample-popup-keyboard">
+                <div id="sample-popup-keyboard-header">
+                    <span class="sample-kb-label">JOUER LE SAMPLE :</span>
+                    <select id="sample-popup-octave-select">
+                        <option value="0">Octave 0</option>
+                        <option value="1">Octave 1</option>
+                        <option value="2" selected>Octave 2</option>
+                        <option value="3">Octave 3</option>
+                        <option value="4">Octave 4</option>
+                        <option value="5">Octave 5</option>
+                    </select>
+                </div>
+                <div id="sample-popup-keys"></div>
+            </div>
             <div id="sample-popup-controls">
                 <button id="sample-popup-play-btn" class="sample-btn" title="Play sample">▶</button>
                 <button id="sample-popup-stop-btn" class="sample-btn" title="Stop sample">■</button>

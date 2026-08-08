@@ -23,6 +23,16 @@ class SampleViewer {
         this.popupTitle = document.getElementById('sample-popup-title');
         this.popupClose = document.getElementById('sample-popup-close');
 
+        // Éléments du zoom (popup)
+        this.zoomInBtn = document.getElementById('sample-popup-zoom-in-btn');
+        this.zoomOutBtn = document.getElementById('sample-popup-zoom-out-btn');
+        this.zoomResetBtn = document.getElementById('sample-popup-zoom-reset-btn');
+        this.zoomDisplay = document.getElementById('sample-popup-zoom-display');
+
+        // Éléments du clavier de notes (popup)
+        this.octaveSelect = document.getElementById('sample-popup-octave-select');
+        this.keysContainer = document.getElementById('sample-popup-keys');
+
         // État
         this.player = null;
         this.sample = null;
@@ -30,6 +40,15 @@ class SampleViewer {
         this.loopEnabled = true;
         this.isPlaying = false;
         this.popupVisible = false;
+
+        // État du zoom/défilement du popup
+        this.zoomFactor = 1;          // 1 = 100% (tout le sample visible)
+        this.zoomOffset = 0;          // décalage en samples pour le défilement
+        this.zoomStartX = null;       // position X du départ du glisser
+
+        // Notes du clavier (noms), C-4 = période 428 en finetune 0 (base C-3 = 214)
+        this.KEY_NOTES = ["C-","C#","D-","D#","E-","F-","F#","G-","G#","A-","A#","B-"];
+        this.keyboardKeys = [];
 
         // Résolution du rendu (nombre de points par pixel de largeur)
         this.drawWidth = 0;
@@ -59,6 +78,43 @@ class SampleViewer {
                 this.closePopup();
             }
         });
+
+        // Zoom : boutons
+        this.zoomInBtn.addEventListener('click', () => this.zoomBy(1.5));
+        this.zoomOutBtn.addEventListener('click', () => this.zoomBy(1 / 1.5));
+        this.zoomResetBtn.addEventListener('click', () => this.resetZoom());
+
+        // Zoom : molette sur le canvas du popup
+        this.popupCanvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 1 / 1.2 : 1.2;
+            // Zoomer centré sur la position de la souris
+            this.zoomAt(e.offsetX, delta);
+        }, { passive: false });
+
+        // Défilement : clic-glisser sur le canvas du popup (quand on est zoomé)
+        this.popupCanvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            this.zoomStartX = e.offsetX;
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (this.zoomStartX === null) return;
+            const rect = this.popupCanvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const dx = mx - this.zoomStartX;
+            if (dx !== 0) {
+                this.scrollByPixels(dx);
+                this.zoomStartX = mx;
+            }
+        });
+        document.addEventListener('mouseup', () => {
+            this.zoomStartX = null;
+        });
+
+        // Clavier de notes : sélecteur d'octave + construction
+        this.octaveSelect.addEventListener('change', () => this.buildKeyboard());
+        this.buildKeyboard();
     }
 
     setPlayer(player) {
@@ -70,6 +126,13 @@ class SampleViewer {
         if (!this.player) return;
         this.sampleNum = sampleNum;
         this.sample = this.player.getSampleData(sampleNum);
+
+        // Réinitialiser le zoom/défilement pour afficher le sample en entier
+        this.zoomFactor = 1;
+        this.zoomOffset = 0;
+        if (this.zoomDisplay) {
+            this.zoomDisplay.textContent = '100%';
+        }
 
         if (this.sample) {
             const label = `${String(sampleNum).padStart(2, '0')} - ${this.sample.name || '(unnamed)'}`;
@@ -151,6 +214,151 @@ class SampleViewer {
         this.popup.classList.remove('visible');
     }
 
+    // =========================================================================
+    // Zoom / défilement du popup
+    // =========================================================================
+
+    /**
+     * Zoom par facteur (1.5 = avant, 1/1.5 = arrière), centré à gauche.
+     * Le bouton "+" zoom simple : on garde le même offset de départ.
+     */
+    zoomBy(factor) {
+        this.zoomAt(0, factor);
+    }
+
+    /**
+     * Zoom en gardant la position de souris (offsetX) fixe à l'écran.
+     */
+    zoomAt(offsetX, factor) {
+        if (!this.sample) return;
+        const len = this.sample.length;
+        const width = this.popupCanvas.width;
+        if (width <= 0) return;
+
+        // Position en samples sous la souris AVANT zoom
+        const visibleLen = len / this.zoomFactor;
+        const anchorSample = this.zoomOffset + (offsetX / width) * visibleLen;
+
+        // Nouveau facteur de zoom borné (1..100)
+        const newFactor = Math.max(1, Math.min(100, this.zoomFactor * factor));
+        if (newFactor === this.zoomFactor) return;
+        this.zoomFactor = newFactor;
+
+        // Nouvelle fenêtre visible (en samples)
+        const newVisibleLen = len / this.zoomFactor;
+
+        // Ajuster l'offset pour que l'anchor reste à la même position écran
+        let newOffset = anchorSample - (offsetX / width) * newVisibleLen;
+        newOffset = this.clampOffset(newOffset, newVisibleLen);
+
+        this.zoomOffset = newOffset;
+        this.zoomDisplay.textContent = Math.round(this.zoomFactor * 100) + '%';
+        this.drawPopup();
+    }
+
+    /**
+     * Réinitialise le zoom (vue complète du sample)
+     */
+    resetZoom() {
+        this.zoomFactor = 1;
+        this.zoomOffset = 0;
+        this.zoomDisplay.textContent = '100%';
+        this.drawPopup();
+    }
+
+    /**
+     * Ramène l'offset dans les bornes valides : 0 <= offset <= len - visibleLen
+     */
+    clampOffset(offset, visibleLen) {
+        if (!this.sample) return 0;
+        const len = this.sample.length;
+        const maxOffset = Math.max(0, len - visibleLen);
+        return Math.max(0, Math.min(maxOffset, offset));
+    }
+
+    /**
+     * Défilement horizontal en pixels (drag gauche/droite)
+     */
+    scrollByPixels(dxPixels) {
+        if (!this.sample || this.zoomFactor <= 1) return;
+        const width = this.popupCanvas.width;
+        if (width <= 0) return;
+
+        // Conversion pixels -> samples
+        const visibleLen = this.sample.length / this.zoomFactor;
+        const samplesPerPixel = visibleLen / width;
+        const deltaSamples = -dxPixels * samplesPerPixel;
+
+        this.zoomOffset = this.clampOffset(this.zoomOffset + deltaSamples, visibleLen);
+        this.drawPopup();
+    }
+
+    // =========================================================================
+    // Clavier de notes pour jouer le sample
+    // =========================================================================
+
+    /**
+     * Construit le clavier de notes dans le popup (12 notes par octave).
+     * ProTracker : octave 2 = C-2 (période 856) à B-2. Le sample est joué
+     * à sa hauteur native à C-3 (période 214) ; on multiplie donc la période
+     * de base par 2^(octave-3) pour chaque note.
+     */
+    buildKeyboard() {
+        if (!this.keysContainer) return;
+        const octave = parseInt(this.octaveSelect.value) || 2;
+        this.keysContainer.innerHTML = '';
+
+        // Période de référence : C-3 (période 214) = hauteur native du sample
+        // On calcule la période de C-3 dans l'octave choisie : 214*2^(octave-3)
+        const c3period = 214;
+        const basePeriod = c3period * Math.pow(2, octave - 3);
+
+        for (let n = 0; n < 12; n++) {
+            const key = document.createElement('button');
+            const noteName = this.KEY_NOTES[n] + octave;
+            key.className = 'sample-key' + (this.isBlackNote(n) ? ' black' : '');
+            key.textContent = noteName;
+            key.title = `Jouer ${noteName}`;
+
+            // Période ProTracker : C (n=0) = basePeriod, chaque demi-ton
+            // multiplie la période par 2^(1/12)
+            const period = basePeriod * Math.pow(2, n / 12);
+
+            key.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.playNote(period);
+                key.classList.add('pressed');
+            });
+            key.addEventListener('mouseup', () => key.classList.remove('pressed'));
+            key.addEventListener('mouseleave', () => key.classList.remove('pressed'));
+
+            this.keysContainer.appendChild(key);
+            this.keyboardKeys.push({ key, period });
+        }
+    }
+
+    /**
+     * Les notes noires du clavier (dièses)
+     */
+    isBlackNote(n) {
+        return [1, 3, 6, 8, 10].includes(n % 12);
+    }
+
+    /**
+     * Joue le sample à la période donnée
+     */
+    playNote(period) {
+        if (!this.player || !this.sample) return;
+        this.player.stopPreview();
+        this.player.previewSample(this.sampleNum, this.loopEnabled, period);
+        this.isPlaying = true;
+        this.playBtn.classList.add('playing');
+        this.popupPlayBtn.classList.add('playing');
+        this.draw();
+        this.drawPopup();
+    }
+
     /**
      * Redimensionne le canvas du popup (remplit la zone)
      */
@@ -206,43 +414,61 @@ class SampleViewer {
         ctx.lineTo(width, centerY);
         ctx.stroke();
 
+        // Fenêtre visible (en samples) en fonction du zoom
+        const visibleLen = len / this.zoomFactor;
+        const offset = this.clampOffset(this.zoomOffset, visibleLen);
+        const startSample = offset;
+        const endSample = startSample + visibleLen;
+
+        // Conversion sample -> pixel X
+        const sampleToX = (s) => ((Math.max(startSample, Math.min(endSample, s)) - startSample) / visibleLen) * width;
+
         // Zone de boucle (si le sample a une boucle)
         if (this.sample.repeatLength > 2) {
-            const loopStartX = (this.sample.repeatStart / len) * width;
-            const loopEndX = ((this.sample.repeatStart + this.sample.repeatLength) / len) * width;
+            const loopStart = this.sample.repeatStart;
+            const loopEnd = this.sample.repeatStart + this.sample.repeatLength;
 
-            ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
-            ctx.fillRect(loopStartX, 0, loopEndX - loopStartX, height);
+            // Le chevauchement avec la fenêtre visible
+            const visStart = Math.max(startSample, loopStart);
+            const visEnd = Math.min(endSample, loopEnd);
+            if (visStart < visEnd) {
+                const loopStartX = sampleToX(loopStart);
+                const loopEndX = sampleToX(loopEnd);
 
-            ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.moveTo(loopStartX, 0);
-            ctx.lineTo(loopStartX, height);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(loopEndX, 0);
-            ctx.lineTo(loopEndX, height);
-            ctx.stroke();
-            ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
+                ctx.fillRect(loopStartX, 0, loopEndX - loopStartX, height);
+
+                ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(loopStartX, 0);
+                ctx.lineTo(loopStartX, height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(loopEndX, 0);
+                ctx.lineTo(loopEndX, height);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
         }
 
         // Dessiner la forme d'onde (même logique que le petit viewer, agrandie)
-        const samplesPerPixel = Math.max(1, Math.ceil(len / width));
-        const numPoints = Math.min(width, len);
-
         ctx.strokeStyle = '#64c864';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
 
-        for (let x = 0; x < numPoints; x++) {
-            const startIdx = Math.floor(x * len / width);
-            const endIdx = Math.max(startIdx + 1, Math.floor((x + 1) * len / width));
-            const clampedEnd = Math.min(endIdx, len);
+        for (let x = 0; x < width; x++) {
+            // Index de sample à ce pixel (borné à la fenêtre visible)
+            const s0 = startSample + (x / width) * visibleLen;
+            const s1 = startSample + ((x + 1) / width) * visibleLen;
+
+            const startIdx = Math.max(0, Math.floor(s0));
+            const endIdx = Math.min(len, Math.ceil(s1));
+            if (startIdx >= len) break;
 
             let minVal = 1;
             let maxVal = -1;
-            for (let i = startIdx; i < clampedEnd; i++) {
+            for (let i = startIdx; i < endIdx; i++) {
                 const v = data[i];
                 if (v < minVal) minVal = v;
                 if (v > maxVal) maxVal = v;
@@ -251,10 +477,7 @@ class SampleViewer {
             const y1 = centerY - maxVal * amplitude;
             const y2 = centerY - minVal * amplitude;
 
-            if (x === 0) {
-                ctx.moveTo(x, y1);
-            }
-            ctx.lineTo(x, y1);
+            ctx.moveTo(x, y1);
             ctx.lineTo(x, y2);
         }
         ctx.stroke();
@@ -263,7 +486,7 @@ class SampleViewer {
         if (this.isPlaying && this.player) {
             const playPos = this.player.getPreviewPosition();
             if (playPos !== null) {
-                const cursorX = (playPos / len) * width;
+                const cursorX = sampleToX(playPos);
 
                 ctx.strokeStyle = '#ffc864';
                 ctx.lineWidth = 2;

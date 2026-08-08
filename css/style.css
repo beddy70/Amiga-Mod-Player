@@ -939,6 +939,133 @@ main {
     user-select: none;
 }
 
+/* ---------- Barre de zoom du popup sample ---------- */
+#sample-popup-zoombar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px;
+    background: var(--panel-bg-header);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    flex-wrap: wrap;
+}
+
+#sample-popup-zoom-display {
+    min-width: 44px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: var(--accent-blue);
+    font-family: 'Courier New', monospace;
+    user-select: none;
+}
+
+#sample-popup-zoom-hint {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-left: 4px;
+    user-select: none;
+}
+
+/* ---------- Clavier de notes du popup sample ---------- */
+#sample-popup-keyboard {
+    background: var(--panel-bg-header);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#sample-popup-keyboard-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sample-kb-label {
+    font-size: 10px;
+    font-weight: bold;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+#sample-popup-octave-select {
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    outline: none;
+}
+
+#sample-popup-octave-select:hover {
+    border-color: var(--accent);
+}
+
+#sample-popup-octave-select option {
+    background: var(--panel-bg);
+    color: var(--text-primary);
+}
+
+#sample-popup-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+    max-height: 66px;
+    overflow-y: auto;
+}
+
+.sample-key {
+    background: var(--text-bright);
+    color: #000;
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    min-width: 26px;
+    height: 26px;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: transform 0.05s, background 0.1s;
+}
+
+.sample-key.black {
+    background: #222;
+    color: #ddd;
+    border-color: #000;
+}
+
+.sample-key:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.15);
+}
+
+.sample-key:active,
+.sample-key.pressed {
+    background: var(--accent);
+    color: #000;
+    transform: translateY(1px);
+}
+
+.sample-key.pressed.black {
+    background: var(--accent);
+    color: #000;
+}
+
 /* ---------- VISUALIZATION ---------- */
 #visualization-container {
     width: 300px;

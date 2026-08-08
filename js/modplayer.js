@@ -1147,7 +1147,7 @@ class ModPlayer {
      * Joue un sample individuel en prévisualisation
      * Utilise un AudioBufferSourceNode Web Audio directement
      */
-    previewSample(sampleNum, loop = false) {
+    previewSample(sampleNum, loop = false, period = 214) {
         if (!this.audioContext) this.initAudio();
         if (this.audioContext.state === 'suspended') {
             this.audioContext.resume();
@@ -1169,8 +1169,11 @@ class ModPlayer {
         gainNode.connect(this.masterGain);
 
         // Pitch natif ProTracker ~ C-3 (période 214)
+        // Le ratio period/214 permet de jouer le sample à une hauteur différente :
+        //   period < 214  → plus aigu (montée en fréquence)
+        //   period > 214  → plus grave (descente en fréquence)
         const nativeRate = this.AMIGA_CLOCK / (214 * 2.0);
-        source.playbackRate.value = nativeRate / this.audioContext.sampleRate;
+        source.playbackRate.value = (nativeRate / this.audioContext.sampleRate) * (214 / period);
 
         // Boucle si le mode loop est activé
         if (loop) {
