@@ -1,5 +1,7 @@
 # MOD Player
 
+![MOD Player - Aperçu](images/screenshot.jpg)
+
 Un lecteur de modules **Amiga .MOD** en JavaScript pur, avec visualisation temps réel du pattern, instruments, samples et partitions musicales. Il émule le son caractéristique de la puce audio **Paula** de l'Amiga (synthèse 4 canaux 8-bit).
 
 ---
