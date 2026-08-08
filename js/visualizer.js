@@ -52,6 +52,15 @@ class SampleViewer {
         this.KEY_NOTES = ["C-","C#","D-","D#","E-","F-","F#","G-","G#","A-","A#","B-"];
         this.keyboardKeys = [];
 
+        // Mapping des touches du clavier physique -> index de note (0-11)
+        // q=C  z=C#  s=D  e=D#  d=E  f=F  t=F#  g=G  y=G#  h=A  u=A#  j=B
+        this.KEY_MAP = {
+            'q': 0, 'z': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5,
+            't': 6, 'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11
+        };
+        // Touche clavier physique actuellement enfoncée (pour l'affichage)
+        this.pressedPhysicalKey = null;
+
         // Résolution du rendu (nombre de points par pixel de largeur)
         this.drawWidth = 0;
         this.drawHeight = 0;
@@ -138,6 +147,45 @@ class SampleViewer {
         this.keysContainer.addEventListener('mouseleave', () => {
             this.pressedKey = -1;
             this.drawKeyboard();
+        });
+
+        // Clavier physique : jouer les notes q/z/s/e/d/f/t/g/y/h/u/j
+        // quand le popup sample est ouvert. La touche reste enfoncée visuellement
+        // tant que la touche physique est maintenue (indépendamment du clic souris).
+        document.addEventListener('keydown', (e) => {
+            if (!this.popupVisible) return;
+            const key = e.key.toLowerCase();
+            if (!(key in this.KEY_MAP)) return;
+            // Ignorer si un champ de saisie/select a le focus (sélecteur d'octave)
+            const tag = (e.target.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+
+            e.preventDefault(); // éviter l'auto-répétition des caractères
+            const noteIdx = this.KEY_MAP[key];
+            if (this.pressedPhysicalKey !== key) {
+                this.pressedPhysicalKey = key;
+                this.pressedKey = noteIdx;
+                if (this.keyboardKeys[noteIdx]) {
+                    this.playNote(this.keyboardKeys[noteIdx].period);
+                }
+                this.drawKeyboard();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (this.pressedPhysicalKey === key) {
+                this.pressedPhysicalKey = null;
+                this.pressedKey = -1;
+                this.drawKeyboard();
+            }
+        });
+        // Relâcher la touche affichée si le popup se ferme
+        document.addEventListener('click', (e) => {
+            if (!this.popupVisible && this.pressedPhysicalKey) {
+                this.pressedPhysicalKey = null;
+                this.pressedKey = -1;
+                this.drawKeyboard();
+            }
         });
     }
 
@@ -396,11 +444,21 @@ class SampleViewer {
                 ctx.fillRect(x + 1, 0, whiteW - 2, 3);
             }
 
+            // Touche clavier physique associée
+            const keyLetter = Object.keys(this.KEY_MAP).find(k => this.KEY_MAP[k] === n) || '';
+
             // Nom de la note
-            ctx.fillStyle = pressed ? '#000' : '#555';
+            ctx.fillStyle = pressed ? '#000' : '#444';
             ctx.font = 'bold 9px monospace';
             ctx.textAlign = 'center';
             ctx.fillText(`${this.KEY_NOTES[n]}${this.keyboardKeys[n] ? this.keyboardKeys[n].octave : ''}`, x + whiteW / 2, h - 6);
+
+            // Lettre du clavier physique (q, s, d, ...)
+            if (keyLetter) {
+                ctx.fillStyle = pressed ? '#000' : '#c07a00';
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText(keyLetter.toUpperCase(), x + whiteW / 2, h - 18);
+            }
         }
 
         // Touches noires (C#, D#, F#, G#, A# = index 1,3,6,8,10)
