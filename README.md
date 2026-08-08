@@ -37,7 +37,7 @@ Un lecteur de modules **Amiga .MOD** en JavaScript pur, avec visualisation temps
 - Affichage de la boucle (loop) du sample en surimpression
 
 ### 🎨 Thèmes
-10 thèmes de couleur : **Amiga** (défaut), Dark, Light, Sunset, Blue Wave, Green Forest, Orange, Purple, Gray, Blue Light.
+13 thèmes de couleur : **Amiga** (défaut), Dark, Light, Sunset, Blue Wave, Green Forest, Orange, Purple, Gray, Blue Light, **Neon** (style Tron avec halo cyan lumineux), **Retro Game** (vert phosphore), **Old School** (sépia vintage).
 
 ---
 
