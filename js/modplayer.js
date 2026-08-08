@@ -114,6 +114,11 @@ class ModPlayer {
         // Channel mute state (true = canal muet)
         this.channelMuted = [false, false, false, false];
 
+        // Balance stéréo par canal (0 = gauche, 1 = droite, 0.5 = centre).
+        // Configuration par défaut identique à l'Amiga : 2 voix à droite
+        // et 2 voix à gauche (CH1/G, CH2/D, CH3/D, CH4/G).
+        this.channelPan = [0.0, 1.0, 1.0, 0.0];
+
         // Note names for display
         this.NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
     }
@@ -469,14 +474,16 @@ class ModPlayer {
                         rmsSamples[ch]++;
                     }
 
-                    // Amiga panning: ch 0,3 left, ch 1,2 right
-                    if (ch === 0 || ch === 3) {
-                        left += sample;
-                        right += sample * 0.25;
-                    } else {
-                        left += sample * 0.25;
-                        right += sample;
-                    }
+                    // Balance stéréo par canal (potentiomètre).
+                    // Lois equal-power : à 0.5 le canal est centré (les deux
+                    // côtés à ~0.707), à 0 tout à gauche, à 1 tout à droite.
+                    // Par défaut : ch 0,3 gauche ; ch 1,2 droite (comme l'Amiga).
+                    const pan = ch < 4 ? this.channelPan[ch] : 0.5;
+                    const panAngle = pan * Math.PI * 0.5;
+                    const panL = Math.cos(panAngle);
+                    const panR = Math.sin(panAngle);
+                    left += sample * panL;
+                    right += sample * panR;
                 }
 
                 left *= 0.4;
@@ -1454,6 +1461,27 @@ class ModPlayer {
     isChannelMuted(channel) {
         if (channel < 0 || channel >= 4) return false;
         return this.channelMuted[channel];
+    }
+
+    /**
+     * Définit la balance stéréo d'un canal (potentiomètre).
+     * 0 = tout à gauche, 1 = tout à droite, 0.5 = centre.
+     * @param {number} channel - Index du canal (0-3)
+     * @param {number} pan - Balance entre 0 et 1
+     */
+    setChannelPan(channel, pan) {
+        if (channel < 0 || channel >= 4) return;
+        this.channelPan[channel] = Math.max(0, Math.min(1, pan));
+    }
+
+    /**
+     * Retourne la balance stéréo d'un canal.
+     * @param {number} channel - Index du canal (0-3)
+     * @returns {number} - Balance entre 0 (gauche) et 1 (droite)
+     */
+    getChannelPan(channel) {
+        if (channel < 0 || channel >= 4) return 0.5;
+        return this.channelPan[channel];
     }
 
     getSpeed() {

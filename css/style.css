@@ -292,6 +292,144 @@ body[data-theme="bluelight"] {
     --scrollbar-thumb: #a0c0d8;
 }
 
+/* --- Thème : Neon (Tron) --- */
+body[data-theme="neon"] {
+    --bg-gradient: linear-gradient(180deg, #000510 0%, #010a1c 40%, #00050f 100%);
+    --panel-bg: #020b16;
+    --panel-bg-header: #031426;
+    --panel-border: #00e5ff;
+    --hover-bg: #033a52;
+    --active-bg: #04455e;
+    --text-primary: #7fe8ff;
+    --text-bright: #c9f4ff;
+    --text-dim: #3fa8cc;
+    --text-muted: #2a6e8a;
+    --accent: #00f0ff;
+    --accent-blue: #00e5ff;
+    --accent-green: #00ffd5;
+    --accent-red: #ff2f6e;
+    --accent-yellow: #f6ff00;
+    --canvas-bg: #020b16;
+    --canvas-bg-deep: #00050f;
+    --sample-canvas-bg: #00050f;
+    --vu-bg: #031426;
+    --btn-bg: #03304a;
+    --btn-border: #00e5ff;
+    --btn-hover: #034460;
+    --btn-active: #022234;
+    --scrollbar-track: #020b16;
+    --scrollbar-thumb: #00e5ff;
+}
+
+/* --- Effets néon Tron (halo tube néon cyan) --- */
+body[data-theme="neon"] header,
+body[data-theme="neon"] #pattern-container,
+body[data-theme="neon"] #patterns-container,
+body[data-theme="neon"] #instruments-container,
+body[data-theme="neon"] #visualization-container,
+body[data-theme="neon"] footer {
+    /* Halo externe diffus (double lueur) + bordure interne lumineuse */
+    box-shadow:
+        0 0 6px rgba(0, 229, 255, 0.55),
+        0 0 18px rgba(0, 229, 255, 0.35),
+        0 0 40px rgba(0, 229, 255, 0.18),
+        inset 0 0 10px rgba(0, 229, 255, 0.20);
+}
+
+/* Bordure des panneaux plus vive (cœur du tube néon) */
+body[data-theme="neon"] header,
+body[data-theme="neon"] #pattern-container,
+body[data-theme="neon"] #patterns-container,
+body[data-theme="neon"] #instruments-container,
+body[data-theme="neon"] #visualization-container,
+body[data-theme="neon"] footer {
+    border-color: #9df4ff;
+}
+
+body[data-theme="neon"] header h1,
+body[data-theme="neon"] #title-display,
+body[data-theme="neon"] #position-display,
+body[data-theme="neon"] #patterns-header,
+body[data-theme="neon"] #instruments-header {
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.8), 0 0 16px rgba(0, 240, 255, 0.4);
+}
+
+body[data-theme="neon"] .control-btn,
+body[data-theme="neon"] .sample-btn,
+body[data-theme="neon"] .tempo-btn,
+body[data-theme="neon"] #theme-select,
+body[data-theme="neon"] #synth-octaves-select,
+body[data-theme="neon"] .synth-mode-btn {
+    box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+}
+
+body[data-theme="neon"] .control-btn:hover {
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.7);
+}
+
+body[data-theme="neon"] #title-display,
+body[data-theme="neon"] #position-display {
+    color: var(--accent);
+}
+
+/* --- Thème : Retro Game (jeu rétro) --- */
+body[data-theme="retrogame"] {
+    --bg-gradient: linear-gradient(180deg, #001a00 0%, #003300 40%, #005500 100%);
+    --panel-bg: #001a00;
+    --panel-bg-header: #002a00;
+    --panel-border: #00ff44;
+    --hover-bg: #003a08;
+    --active-bg: #005a10;
+    --text-primary: #66ff66;
+    --text-bright: #a0ffa0;
+    --text-dim: #33aa44;
+    --text-muted: #2d7040;
+    --accent: #ffff44;
+    --accent-blue: #44ffff;
+    --accent-green: #44ff44;
+    --accent-red: #ff4444;
+    --accent-yellow: #ffff44;
+    --canvas-bg: #001a00;
+    --canvas-bg-deep: #000a00;
+    --sample-canvas-bg: #000a00;
+    --vu-bg: #002a00;
+    --btn-bg: #005a10;
+    --btn-border: #00ff44;
+    --btn-hover: #007a18;
+    --btn-active: #003a08;
+    --scrollbar-track: #001a00;
+    --scrollbar-thumb: #00ff44;
+}
+
+/* --- Thème : Old School (classique) --- */
+body[data-theme="oldschool"] {
+    --bg-gradient: linear-gradient(180deg, #3a2a1a 0%, #2a1d10 40%, #1a1208 100%);
+    --panel-bg: #2a1d10;
+    --panel-bg-header: #3a2a1a;
+    --panel-border: #7a5a30;
+    --hover-bg: #4a3520;
+    --active-bg: #5a4028;
+    --text-primary: #e0c080;
+    --text-bright: #ffe8a0;
+    --text-dim: #b09050;
+    --text-muted: #806030;
+    --accent: #ffb84d;
+    --accent-blue: #6aa0c8;
+    --accent-green: #8fcf7a;
+    --accent-red: #d0755a;
+    --accent-yellow: #e8c04a;
+    --canvas-bg: #2a1d10;
+    --canvas-bg-deep: #1a1208;
+    --sample-canvas-bg: #1a1208;
+    --vu-bg: #3a2a1a;
+    --btn-bg: #5a4028;
+    --btn-border: #8a653c;
+    --btn-hover: #6a4c30;
+    --btn-active: #4a3520;
+    --scrollbar-track: #2a1d10;
+    --scrollbar-thumb: #7a5a30;
+}
+
 /* ==========================================================================
    Base
    ========================================================================== */
@@ -713,26 +851,31 @@ main {
 }
 
 #vu-meters {
-    height: 72px;
-    display: flex;
+    height: auto;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
     gap: 4px;
     padding: 4px;
     border-bottom: 1px solid var(--panel-border);
 }
 
 .vu-meter {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
+    gap: 2px;
     position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .vu-needle-canvas {
     width: 100%;
-    height: 50px;
-    flex: 1;
+    height: 46px;
+    min-height: 0;
     background: var(--canvas-bg-deep);
     border-radius: 4px;
     border: 1px solid var(--panel-border);
@@ -760,8 +903,75 @@ main {
 .vu-label.ch-2 { color: var(--accent-blue); }
 .vu-label.ch-3 { color: var(--accent-yellow); }
 
+/* Potentiomètre de balance stéréo par canal (L --- C --- R) */
+.vu-pan-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    width: 100%;
+    margin-top: 1px;
+}
+
+/* Piste du slider (rangée) */
+.vu-pan {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 14px;
+    min-height: 0;
+    background: transparent;
+    cursor: pointer;
+    outline: none;
+}
+
+/* Piste visible (fond) : uni, sans dégradé */
+.vu-pan::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    opacity: 0.9;
+}
+
+/* Poignée (curseur) : uni, sans dégradé */
+.vu-pan::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 14px;
+    margin-top: -5px;
+    border-radius: 2px;
+    background: #c0c0c8;
+    border: 1px solid #3c3c50;
+}
+
+/* Firefox */
+.vu-pan::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    opacity: 0.9;
+}
+
+.vu-pan::-moz-range-thumb {
+    width: 10px;
+    height: 14px;
+    border-radius: 2px;
+    background: #c0c0c8;
+    border: 1px solid #3c3c50;
+}
+
+/* Libellé de la balance (L / C / R) */
+.vu-pan-label {
+    width: 10px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: var(--text-dim);
+}
+
 #visualization-canvas {
     flex: 1;
+    min-height: 0;
     width: 100%;
     background: var(--canvas-bg-deep);
 }
