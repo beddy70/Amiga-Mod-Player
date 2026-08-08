@@ -31,7 +31,9 @@ class SampleViewer {
 
         // Éléments du clavier de notes (popup)
         this.octaveSelect = document.getElementById('sample-popup-octave-select');
-        this.keysContainer = document.getElementById('sample-popup-keys');
+        this.keysContainer = document.getElementById('sample-popup-keyboard-canvas');
+        this.keysCtx = this.keysContainer ? this.keysContainer.getContext('2d') : null;
+        this.pressedKey = -1; // index de la touche enfoncée (-1 = aucune)
 
         // État
         this.player = null;
@@ -115,6 +117,28 @@ class SampleViewer {
         // Clavier de notes : sélecteur d'octave + construction
         this.octaveSelect.addEventListener('change', () => this.buildKeyboard());
         this.buildKeyboard();
+
+        // Clavier piano : clic pour jouer une note
+        this.keysContainer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const rect = this.keysContainer.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const noteIdx = this.noteIndexAtPos(mx, my);
+            if (noteIdx >= 0 && this.keyboardKeys[noteIdx]) {
+                this.pressedKey = noteIdx;
+                this.playNote(this.keyboardKeys[noteIdx].period);
+                this.drawKeyboard();
+            }
+        });
+        this.keysContainer.addEventListener('mouseup', () => {
+            this.pressedKey = -1;
+            this.drawKeyboard();
+        });
+        this.keysContainer.addEventListener('mouseleave', () => {
+            this.pressedKey = -1;
+            this.drawKeyboard();
+        });
     }
 
     setPlayer(player) {
@@ -204,6 +228,9 @@ class SampleViewer {
         this.popup.classList.add('visible');
         this.popupInfo.textContent = this.sampleInfoString();
         this.drawPopup();
+        // Le canvas du clavier n'a pas de largeur tant que le popup est masqué :
+        // redessiner une fois le popup visible
+        this.drawKeyboard();
     }
 
     /**
@@ -298,51 +325,148 @@ class SampleViewer {
     // =========================================================================
 
     /**
-     * Construit le clavier de notes dans le popup (12 notes par octave).
-     * ProTracker : octave 2 = C-2 (période 856) à B-2. Le sample est joué
-     * à sa hauteur native à C-3 (période 214) ; on multiplie donc la période
-     * de base par 2^(octave-3) pour chaque note.
+     * Construit le clavier de piano (1 octave) dans le popup sur le canvas.
+     * 12 notes par octave, touches blanches + noires réalistes.
+     * Le sample est joué à sa hauteur native à C-3 (période 214) ;
+     * chaque octave multiplie la période par 2, chaque demi-ton par 2^(1/12).
      */
     buildKeyboard() {
         if (!this.keysContainer) return;
         const octave = parseInt(this.octaveSelect.value) || 2;
-        this.keysContainer.innerHTML = '';
 
-        // Période de référence : C-3 (période 214) = hauteur native du sample
-        // On calcule la période de C-3 dans l'octave choisie : 214*2^(octave-3)
-        const c3period = 214;
-        const basePeriod = c3period * Math.pow(2, octave - 3);
-
-        for (let n = 0; n < 12; n++) {
-            const key = document.createElement('button');
-            const noteName = this.KEY_NOTES[n] + octave;
-            key.className = 'sample-key' + (this.isBlackNote(n) ? ' black' : '');
-            key.textContent = noteName;
-            key.title = `Jouer ${noteName}`;
-
-            // Période ProTracker : C (n=0) = basePeriod, chaque demi-ton
-            // multiplie la période par 2^(1/12)
+        // Calculer la période de chaque note de l'octave choisie
+        this.keyboardKeys = this.KEY_NOTES.map((_, n) => {
+            const basePeriod = 214 * Math.pow(2, octave - 3);
             const period = basePeriod * Math.pow(2, n / 12);
+            return { period, octave, note: this.KEY_NOTES[n] + octave };
+        });
 
-            key.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.playNote(period);
-                key.classList.add('pressed');
-            });
-            key.addEventListener('mouseup', () => key.classList.remove('pressed'));
-            key.addEventListener('mouseleave', () => key.classList.remove('pressed'));
-
-            this.keysContainer.appendChild(key);
-            this.keyboardKeys.push({ key, period });
-        }
+        this.drawKeyboard();
     }
 
     /**
-     * Les notes noires du clavier (dièses)
+     * Redimensionne le canvas du clavier piano (1 octave)
      */
-    isBlackNote(n) {
-        return [1, 3, 6, 8, 10].includes(n % 12);
+    resizeKeyboard() {
+        if (!this.keysContainer) return;
+        const w = this.keysContainer.clientWidth;
+        const h = this.keysContainer.clientHeight;
+        if (this.keysContainer.width !== w) this.keysContainer.width = w;
+        if (this.keysContainer.height !== h) this.keysContainer.height = h;
+    }
+
+    /**
+     * Dessine un vrai clavier de piano 1 octave (touches blanches + noires)
+     */
+    drawKeyboard() {
+        if (!this.keysCtx) return;
+        this.resizeKeyboard();
+        const ctx = this.keysCtx;
+        const w = this.keysContainer.width;
+        const h = this.keysContainer.height;
+        if (w === 0 || h === 0) return;
+
+        // Fond
+        const bgColor = getComputedStyle(document.body).getPropertyValue('--canvas-bg-deep').trim() || '#0a0a14';
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, w, h);
+
+        // Les 7 touches blanches d'une octave : C D E F G A B (index 0,2,4,5,7,9,11)
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
+        const whiteW = w / whiteNotes.length;
+
+        // Dessiner les touches blanches
+        for (let i = 0; i < whiteNotes.length; i++) {
+            const n = whiteNotes[i];
+            const x = i * whiteW;
+            const pressed = this.pressedKey === n;
+
+            // Touche blanche (ou accent si pressée)
+            ctx.fillStyle = pressed ? '#ffc864' : '#f0f0f0';
+            ctx.fillRect(x + 0.5, 0.5, whiteW - 1, h - 1);
+
+            // Contour
+            ctx.strokeStyle = '#3c3c50';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, 0.5, whiteW - 1, h - 1);
+
+            // Ombre de la touche (haut légèrement plus sombre)
+            if (!pressed) {
+                ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                ctx.fillRect(x + 1, 0, whiteW - 2, 3);
+            }
+
+            // Nom de la note
+            ctx.fillStyle = pressed ? '#000' : '#555';
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${this.KEY_NOTES[n]}${this.keyboardKeys[n] ? this.keyboardKeys[n].octave : ''}`, x + whiteW / 2, h - 6);
+        }
+
+        // Touches noires (C#, D#, F#, G#, A# = index 1,3,6,8,10)
+        const blackNotes = [1, 3, 6, 8, 10];
+        const blackW = whiteW * 0.6;
+        const blackH = h * 0.6;
+
+        // Position de chaque touche noire par rapport aux touches blanches
+        // C# entre C et D, D# entre D et E, F# entre F et G, etc.
+        const blackPos = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 }; // index de la touche blanche avant
+
+        for (const n of blackNotes) {
+            const whiteIdx = blackPos[n];
+            const x = (whiteIdx + 1) * whiteW - blackW / 2;
+            const pressed = this.pressedKey === n;
+
+            ctx.fillStyle = pressed ? '#ffc864' : '#1a1a1a';
+            ctx.fillRect(x, 0, blackW, blackH);
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, 0.5, blackW - 1, blackH - 0.5);
+
+            // Nom de la note noire
+            ctx.fillStyle = pressed ? '#000' : '#aaa';
+            ctx.font = 'bold 7px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.KEY_NOTES[n], x + blackW / 2, blackH - 4);
+        }
+
+        // Reset textAlign
+        ctx.textAlign = 'left';
+    }
+
+    /**
+     * Retourne l'index de la note (0-11) sur laquelle se trouve la souris
+     */
+    noteIndexAtPos(mx, my) {
+        if (!this.keysContainer) return -1;
+        const w = this.keysContainer.width;
+        const h = this.keysContainer.height;
+        if (w === 0 || h === 0) return -1;
+
+        const whiteNotes = [0, 2, 4, 5, 7, 9, 11];
+        const whiteW = w / whiteNotes.length;
+        const blackNotes = [1, 3, 6, 8, 10];
+        const blackW = whiteW * 0.6;
+        const blackH = h * 0.6;
+        const blackPos = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 };
+
+        // Tester d'abord les touches noires (elles passent au-dessus des blanches)
+        for (const n of blackNotes) {
+            const x = (blackPos[n] + 1) * whiteW - blackW / 2;
+            if (mx >= x && mx <= x + blackW && my >= 0 && my <= blackH) {
+                return n;
+            }
+        }
+
+        // Ensuite les touches blanches
+        for (let i = 0; i < whiteNotes.length; i++) {
+            const x = i * whiteW;
+            if (mx >= x && mx < x + whiteW) {
+                return whiteNotes[i];
+            }
+        }
+        return -1;
     }
 
     /**
