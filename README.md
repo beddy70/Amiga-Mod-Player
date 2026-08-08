@@ -38,6 +38,14 @@ Un lecteur de modules **Amiga .MOD** en JavaScript pur, avec visualisation temps
 - Boutons **Play / Stop / Loop** pour écouter un sample
 - Affichage de la boucle (loop) du sample en surimpression
 
+### 🔍 Zoom & clavier de notes (Sample Viewer popup)
+En cliquant sur le canvas de l'échantillonneur, un **popup agrandi** s'ouvre avec :
+- **Zoom** : molette de la souris (centrée sur le curseur) ou boutons **+ / −**, avec affichage du pourcentage
+- **Réinitialisation** du zoom avec le bouton **⟲**
+- **Défilement** horizontal par clic-glisser (drag) lorsque le sample est zoomé
+- **Clavier de notes** : jouer le sample à différentes hauteurs sur **12 notes** (C- à B-) et **0 à 5 octaves** (sélecteur)
+- La lecture respecte le pitch ProTracker : le sample joue à sa hauteur native à C-3 (période 214), chaque demi-ton/octave ajuste la fréquence
+
 ### 🎚️ Balances (Pan) des canaux
 - **Curseurs de balance stéréo** par canal (L — C — R), réglables individuellement
 - Ce réglage **n'est pas compatible avec l'Amiga** (dont la sortie est monophonique) : il s'agit d'un **confort d'écoute amélioré** propre à ce lecteur
@@ -86,6 +94,9 @@ open index.html
    - Bouton **MODE** pour basculer entre `KEYS` (clavier) et `SCORE` (partition)
 5. **Visualisation** : cliquez sur la zone de visualisation pour changer de mode (spectre/scope)
 6. **Samples** : sélectionnez un instrument, puis **play / stop / loop** dans l'échantillonneur
+   - **Cliquez sur le canvas** de l'échantillonneur pour ouvrir le **popup agrandi**
+   - **Zoom** à la molette ou boutons **+ / −**, **reset** avec **⟲**, **défilement** par clic-glisser
+   - **Clavier de notes** : choisissez une octave et cliquez une note pour jouer le sample à cette hauteur
 7. **Balances** : ajustez les curseurs **L — C — R** de chaque canal pour répartir les voix dans le champ stéréo ; **RESET PAN** pour revenir au rendu mono original de l'Amiga
 
 ---
