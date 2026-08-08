@@ -129,6 +129,23 @@
         <div id="note-popup-body" class="note-popup-body"></div>
     </div>
 
+    <!-- Sample Popup (affiché au clic sur le canvas du sample viewer) -->
+    <div id="sample-popup" class="sample-popup">
+        <div class="sample-popup-header">
+            <span id="sample-popup-title">SAMPLE VIEWER</span>
+            <button id="sample-popup-close" class="sample-popup-close">✖</button>
+        </div>
+        <div class="sample-popup-body">
+            <canvas id="sample-popup-canvas"></canvas>
+            <div id="sample-popup-controls">
+                <button id="sample-popup-play-btn" class="sample-btn" title="Play sample">▶</button>
+                <button id="sample-popup-stop-btn" class="sample-btn" title="Stop sample">■</button>
+                <button id="sample-popup-loop-btn" class="sample-btn active" title="Toggle loop">⟳</button>
+                <span id="sample-popup-info">No sample selected</span>
+            </div>
+        </div>
+    </div>
+
     <script src="js/modplayer.js"></script>
     <script src="js/visualizer.js"></script>
     <script src="js/main.js"></script>

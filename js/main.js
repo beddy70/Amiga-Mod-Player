@@ -1478,8 +1478,9 @@ class ModPlayerApp {
         // est appliqué ici pour rester fluide même sans nouveau flux audio.
         this.visualizer.updateVUMeters();
 
-        // Dessiner le visualiseur de sample
+        // Dessiner le visualiseur de sample (petit + popup agrandi)
         this.sampleViewer.draw();
+        this.sampleViewer.drawPopup();
 
         // Mettre à jour l'affichage de la position.
         // Affiche toujours le pattern réellement affiché à l'écran,

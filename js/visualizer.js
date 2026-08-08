@@ -12,12 +12,24 @@ class SampleViewer {
         this.loopBtn = document.getElementById('sample-loop-btn');
         this.nameDisplay = document.getElementById('sample-name-display');
 
+        // Éléments du popup d'agrandissement
+        this.popup = document.getElementById('sample-popup');
+        this.popupCanvas = document.getElementById('sample-popup-canvas');
+        this.popupCtx = this.popupCanvas.getContext('2d');
+        this.popupPlayBtn = document.getElementById('sample-popup-play-btn');
+        this.popupStopBtn = document.getElementById('sample-popup-stop-btn');
+        this.popupLoopBtn = document.getElementById('sample-popup-loop-btn');
+        this.popupInfo = document.getElementById('sample-popup-info');
+        this.popupTitle = document.getElementById('sample-popup-title');
+        this.popupClose = document.getElementById('sample-popup-close');
+
         // État
         this.player = null;
         this.sample = null;
         this.sampleNum = 0;
         this.loopEnabled = true;
         this.isPlaying = false;
+        this.popupVisible = false;
 
         // Résolution du rendu (nombre de points par pixel de largeur)
         this.drawWidth = 0;
@@ -31,6 +43,22 @@ class SampleViewer {
         this.playBtn.addEventListener('click', () => this.play());
         this.stopBtn.addEventListener('click', () => this.stop());
         this.loopBtn.addEventListener('click', () => this.toggleLoop());
+
+        // Clic sur le canvas pour ouvrir le popup d'agrandissement
+        this.canvas.addEventListener('click', () => this.openPopup());
+
+        // Contrôles du popup
+        this.popupClose.addEventListener('click', () => this.closePopup());
+        this.popupPlayBtn.addEventListener('click', () => this.play());
+        this.popupStopBtn.addEventListener('click', () => this.stop());
+        this.popupLoopBtn.addEventListener('click', () => this.toggleLoop());
+
+        // Fermer le popup si clic en dehors
+        document.addEventListener('click', (e) => {
+            if (this.popupVisible && !this.popup.contains(e.target) && e.target !== this.canvas) {
+                this.closePopup();
+            }
+        });
     }
 
     setPlayer(player) {
@@ -44,11 +72,17 @@ class SampleViewer {
         this.sample = this.player.getSampleData(sampleNum);
 
         if (this.sample) {
-            this.nameDisplay.textContent = `${String(sampleNum).padStart(2, '0')} - ${this.sample.name || '(unnamed)'}`;
+            const label = `${String(sampleNum).padStart(2, '0')} - ${this.sample.name || '(unnamed)'}`;
+            this.nameDisplay.textContent = label;
+            this.popupTitle.textContent = `SAMPLE VIEWER - ${label}`;
+            this.popupInfo.textContent = this.sampleInfoString();
         } else {
             this.nameDisplay.textContent = 'No sample selected';
+            this.popupTitle.textContent = 'SAMPLE VIEWER';
+            this.popupInfo.textContent = 'No sample selected';
         }
         this.draw();
+        this.drawPopup();
     }
 
     play() {
@@ -57,7 +91,9 @@ class SampleViewer {
         this.player.previewSample(this.sampleNum, this.loopEnabled);
         this.isPlaying = true;
         this.playBtn.classList.add('playing');
+        this.popupPlayBtn.classList.add('playing');
         this.draw();
+        this.drawPopup();
     }
 
     stop() {
@@ -65,16 +101,190 @@ class SampleViewer {
         this.player.stopPreview();
         this.isPlaying = false;
         this.playBtn.classList.remove('playing');
+        this.popupPlayBtn.classList.remove('playing');
         this.draw();
+        this.drawPopup();
     }
 
     toggleLoop() {
         this.loopEnabled = !this.loopEnabled;
         this.loopBtn.classList.toggle('active', this.loopEnabled);
-        
+        this.popupLoopBtn.classList.toggle('active', this.loopEnabled);
+
         // Si le sample est en lecture, on relance avec le nouveau mode
         if (this.isPlaying) {
             this.play();
+        }
+    }
+
+    /**
+     * Chaîne d'information du sample pour l'affichage du popup
+     */
+    sampleInfoString() {
+        if (!this.sample) return 'No sample selected';
+        const parts = [];
+        const name = this.sample.name || '(unnamed)';
+        const len = this.sample.length;
+        if (len > 0) parts.push(`Len: ${len}`);
+        if (this.sample.repeatLength > 2) {
+            parts.push(`Loop: ${this.sample.repeatStart}-${this.sample.repeatStart + this.sample.repeatLength}`);
+        }
+        return `${String(this.sampleNum).padStart(2, '0')} ${name}${parts.length ? ' | ' + parts.join(' | ') : ''}`;
+    }
+
+    /**
+     * Ouvre le popup d'agrandissement du sample
+     */
+    openPopup() {
+        if (!this.sample) return;
+        this.popupVisible = true;
+        this.popup.classList.add('visible');
+        this.popupInfo.textContent = this.sampleInfoString();
+        this.drawPopup();
+    }
+
+    /**
+     * Ferme le popup d'agrandissement du sample
+     */
+    closePopup() {
+        this.popupVisible = false;
+        this.popup.classList.remove('visible');
+    }
+
+    /**
+     * Redimensionne le canvas du popup (remplit la zone)
+     */
+    resizePopup() {
+        const w = this.popupCanvas.clientWidth;
+        const h = this.popupCanvas.clientHeight;
+        if (this.popupCanvas.width !== w) {
+            this.popupCanvas.width = w;
+        }
+        if (this.popupCanvas.height !== h) {
+            this.popupCanvas.height = h;
+        }
+    }
+
+    /**
+     * Dessine le sample dans le popup (grand format)
+     */
+    drawPopup() {
+        if (!this.popupVisible) return;
+        this.resizePopup();
+
+        const ctx = this.popupCtx;
+        const width = this.popupCanvas.width;
+        const height = this.popupCanvas.height;
+
+        // Fond (couleur du thème)
+        const cs = getComputedStyle(document.body);
+        const bgColor = cs.getPropertyValue('--sample-canvas-bg').trim() || '#0a0a14';
+        const textMuted = cs.getPropertyValue('--text-muted').trim() || '#404050';
+
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, width, height);
+
+        if (!this.sample || !this.sample.data || this.sample.length === 0) {
+            ctx.fillStyle = textMuted;
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('NO SAMPLE', width / 2, height / 2);
+            ctx.textAlign = 'left';
+            return;
+        }
+
+        const data = this.sample.data;
+        const len = data.length;
+        const centerY = height / 2;
+        const amplitude = height / 2 - 14;
+
+        // Ligne centrale
+        ctx.strokeStyle = 'rgba(80, 80, 120, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+
+        // Zone de boucle (si le sample a une boucle)
+        if (this.sample.repeatLength > 2) {
+            const loopStartX = (this.sample.repeatStart / len) * width;
+            const loopEndX = ((this.sample.repeatStart + this.sample.repeatLength) / len) * width;
+
+            ctx.fillStyle = 'rgba(100, 150, 255, 0.15)';
+            ctx.fillRect(loopStartX, 0, loopEndX - loopStartX, height);
+
+            ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(loopStartX, 0);
+            ctx.lineTo(loopStartX, height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(loopEndX, 0);
+            ctx.lineTo(loopEndX, height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Dessiner la forme d'onde (même logique que le petit viewer, agrandie)
+        const samplesPerPixel = Math.max(1, Math.ceil(len / width));
+        const numPoints = Math.min(width, len);
+
+        ctx.strokeStyle = '#64c864';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+
+        for (let x = 0; x < numPoints; x++) {
+            const startIdx = Math.floor(x * len / width);
+            const endIdx = Math.max(startIdx + 1, Math.floor((x + 1) * len / width));
+            const clampedEnd = Math.min(endIdx, len);
+
+            let minVal = 1;
+            let maxVal = -1;
+            for (let i = startIdx; i < clampedEnd; i++) {
+                const v = data[i];
+                if (v < minVal) minVal = v;
+                if (v > maxVal) maxVal = v;
+            }
+
+            const y1 = centerY - maxVal * amplitude;
+            const y2 = centerY - minVal * amplitude;
+
+            if (x === 0) {
+                ctx.moveTo(x, y1);
+            }
+            ctx.lineTo(x, y1);
+            ctx.lineTo(x, y2);
+        }
+        ctx.stroke();
+
+        // Curseur de lecture vertical si le sample est en lecture
+        if (this.isPlaying && this.player) {
+            const playPos = this.player.getPreviewPosition();
+            if (playPos !== null) {
+                const cursorX = (playPos / len) * width;
+
+                ctx.strokeStyle = '#ffc864';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cursorX, 0);
+                ctx.lineTo(cursorX, height);
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffc864';
+                ctx.beginPath();
+                ctx.arc(cursorX, 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(cursorX, height - 3, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // La lecture one-shot est terminée
+                this.isPlaying = false;
+                this.playBtn.classList.remove('playing');
+                this.popupPlayBtn.classList.remove('playing');
+            }
         }
     }
 
