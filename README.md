@@ -36,6 +36,12 @@ Un lecteur de modules **Amiga .MOD** en JavaScript pur, avec visualisation temps
 - Boutons **Play / Stop / Loop** pour écouter un sample
 - Affichage de la boucle (loop) du sample en surimpression
 
+### 🎚️ Balances (Pan) des canaux
+- **Curseurs de balance stéréo** par canal (L — C — R), réglables individuellement
+- Ce réglage **n'est pas compatible avec l'Amiga** (dont la sortie est monophonique) : il s'agit d'un **confort d'écoute amélioré** propre à ce lecteur
+- Il permet de **mieux répartir les canaux** dans le champ stéréo et d'**améliorer l'écoute** en séparant les voix
+- Bouton **RESET PAN** pour **réinitialiser toutes les balances** et revenir au **rendu d'écoute original de l'Amiga**
+
 ### 🎨 Thèmes
 13 thèmes de couleur : **Amiga** (défaut), Dark, Light, Sunset, Blue Wave, Green Forest, Orange, Purple, Gray, Blue Light, **Neon** (style Tron avec halo cyan lumineux), **Retro Game** (vert phosphore), **Old School** (sépia vintage).
 
@@ -78,6 +84,7 @@ open index.html
    - Bouton **MODE** pour basculer entre `KEYS` (clavier) et `SCORE` (partition)
 5. **Visualisation** : cliquez sur la zone de visualisation pour changer de mode (spectre/scope)
 6. **Samples** : sélectionnez un instrument, puis **play / stop / loop** dans l'échantillonneur
+7. **Balances** : ajustez les curseurs **L — C — R** de chaque canal pour répartir les voix dans le champ stéréo ; **RESET PAN** pour revenir au rendu mono original de l'Amiga
 
 ---
 
