@@ -177,6 +177,8 @@ class SampleViewer {
                 this.pressedPhysicalKey = null;
                 this.pressedKey = -1;
                 this.drawKeyboard();
+                // Arrêter la lecture du sample quand la touche est relâchée
+                this.stop();
             }
         });
         // Relâcher la touche affichée si le popup se ferme
