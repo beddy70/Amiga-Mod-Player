@@ -40,6 +40,7 @@ Un lecteur de modules **Amiga .MOD** en JavaScript pur, avec visualisation temps
 
 ### 🔍 Zoom & clavier de notes (Sample Viewer popup)
 En cliquant sur le canvas de l'échantillonneur, un **popup agrandi** s'ouvre avec :
+- **Sélecteur d'instrument** : une combo box dans l'en-tête permet de **changer directement d'instrument** depuis le popup (affiche par défaut l'instrument courant)
 - **Zoom** : molette de la souris (centrée sur le curseur) ou boutons **+ / −**, avec affichage du pourcentage
 - **Réinitialisation** du zoom avec le bouton **⟲**
 - **Défilement** horizontal par clic-glisser (drag) lorsque le sample est zoomé
@@ -95,6 +96,7 @@ open index.html
 5. **Visualisation** : cliquez sur la zone de visualisation pour changer de mode (spectre/scope)
 6. **Samples** : sélectionnez un instrument, puis **play / stop / loop** dans l'échantillonneur
    - **Cliquez sur le canvas** de l'échantillonneur pour ouvrir le **popup agrandi**
+   - **Combo box d'instrument** dans l'en-tête du popup pour **changer d'instrument** directement (synchronisée avec la liste INSTRUMENTS)
    - **Zoom** à la molette ou boutons **+ / −**, **reset** avec **⟲**, **défilement** par clic-glisser
    - **Clavier de notes** : choisissez une octave et cliquez une note pour jouer le sample à cette hauteur
 7. **Balances** : ajustez les curseurs **L — C — R** de chaque canal pour répartir les voix dans le champ stéréo ; **RESET PAN** pour revenir au rendu mono original de l'Amiga

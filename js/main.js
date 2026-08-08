@@ -412,6 +412,15 @@ class ModPlayerApp {
         const sortedSamples = [...samples].sort((a, b) => a.num - b.num);
         this.sampleItems = [];
 
+        // Remplir le sélecteur d'instruments du popup sample
+        this.sampleViewer.setInstruments(sortedSamples);
+
+        // Le popup peut changer d'instrument : synchroniser l'UI externe
+        const self = this;
+        this.sampleViewer.onSelectSample = (num) => {
+            self.selectSample(num);
+        };
+
         // Sélectionner automatiquement l'instrument 1 (ou le premier disponible)
         this.selectedSample = 0;
         const defaultSample = sortedSamples.find(s => s.num === 1) || sortedSamples[0];

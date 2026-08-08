@@ -121,6 +121,15 @@ class ModPlayer {
 
         // Note names for display
         this.NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+
+        // Polyphonie : tableau des voix de prévisualisation actives.
+        // Chaque voix est un objet { id, source, gainNode, sampleNum, loop,
+        // startTime, sampleLength, repeatStart, repeatLength, period }.
+        // previewSample/chaine la polyphonie en créant une nouvelle voix
+        // sans couper les précédentes ; stopPreview(id) arrête une voix précise.
+        this.previewVoices = [];
+        this.nextPreviewVoiceId = 1;
+        this.lastPreviewSource = null; // voix la plus récente (pour compat affichage)
     }
 
     // =========================================================================
@@ -1154,7 +1163,7 @@ class ModPlayer {
         }
 
         const smp = this.samples[sampleNum];
-        if (!smp || !smp.data || smp.length === 0) return;
+        if (!smp || !smp.data || smp.length === 0) return null;
 
         // Charger le sample dans un AudioBuffer mono
         const buffer = this.audioContext.createBuffer(1, smp.length, this.audioContext.sampleRate);
@@ -1191,8 +1200,13 @@ class ModPlayer {
 
         source.connect(gainNode);
 
-        // Référence pour pouvoir arrêter si nécessaire
-        this.lastPreviewSource = {
+        // Id unique de la voix
+        const id = this.nextPreviewVoiceId++;
+
+        // La voix est enregistrée dans le tableau (polyphonie). La voix la plus
+        // récente est aussi pointée par lastPreviewSource pour l'affichage.
+        const voice = {
+            id,
             source,
             gainNode,
             sampleNum,
@@ -1200,17 +1214,52 @@ class ModPlayer {
             startTime: this.audioContext.currentTime,
             sampleLength: smp.length,
             repeatStart: smp.repeatStart,
-            repeatLength: smp.repeatLength
+            repeatLength: smp.repeatLength,
+            period
         };
+        this.previewVoices.push(voice);
+        this.lastPreviewSource = voice;
 
         if (loop) {
             // Lecture en boucle sans limite de temps
             source.start();
         } else {
-            // Lecture unique avec arrêt après la durée du sample ou 4s max
-            const duration = Math.min(smp.length / this.audioContext.sampleRate, 4.0);
+            // Lecture unique : on laisse le sample se terminer NATURELLEMENT.
+            // Ne PAS appeler source.stop() manuellement : un AudioBufferSourceNode
+            // one-shot s'arrête tout seul à la fin du buffer, et Web Audio applique
+            // automatiquement le playbackRate. Un stop() manuel basé sur une durée
+            // calculée serait faux quand le pitch diffère de la période 214
+            // (sample joué plus grave → playbackRate < 1 → durée réelle plus longue).
+            // Cela coupait le son et le curseur AVANT la fin du sample.
             source.start();
-            source.stop(this.audioContext.currentTime + duration);
+
+            // Le nœud source se termine : on peut retirer la voix du tableau
+            // quand elle s'arrête (évite l'accumulation de voix finies).
+            source.onended = () => {
+                this.removePreviewVoice(id);
+            };
+        }
+
+        return id;
+    }
+
+    /**
+     * Retire une voix du tableau de polyphonie et nettoie ses nœuds audio.
+     * @param {number} id - Id de la voix à retirer
+     */
+    removePreviewVoice(id) {
+        const idx = this.previewVoices.findIndex(v => v.id === id);
+        if (idx >= 0) {
+            const voice = this.previewVoices[idx];
+            try {
+                voice.source.disconnect();
+                voice.gainNode.disconnect();
+            } catch (e) {}
+            this.previewVoices.splice(idx, 1);
+        }
+        // Si c'était la dernière voix affichée, on la retire aussi
+        if (this.lastPreviewSource && this.lastPreviewSource.id === id) {
+            this.lastPreviewSource = null;
         }
     }
 
@@ -1218,9 +1267,14 @@ class ModPlayer {
      * Retourne la position de lecture actuelle du sample en cours de prévisualisation
      * @returns {number|null} - Position en samples, ou null si pas de prévisualisation
      */
-    getPreviewPosition() {
-        if (!this.lastPreviewSource || !this.audioContext) return null;
-        const ps = this.lastPreviewSource;
+    getPreviewPosition(id = null) {
+        let ps;
+        if (id !== null) {
+            ps = this.previewVoices.find(v => v.id === id) || null;
+        } else {
+            ps = this.lastPreviewSource;
+        }
+        if (!ps || !this.audioContext) return null;
 
         // Temps écoulé depuis le début de la lecture
         const elapsed = (this.audioContext.currentTime - ps.startTime) * this.SAMPLE_RATE;
@@ -1248,18 +1302,40 @@ class ModPlayer {
         return pos;
     }
 
-    stopPreview() {
-        if (this.lastPreviewSource) {
-            try {
-                this.lastPreviewSource.source.stop();
-            } catch (e) {}
-            // Disconnect les nœuds
-            try {
-                this.lastPreviewSource.source.disconnect();
-                this.lastPreviewSource.gainNode.disconnect();
-            } catch (e) {}
-            this.lastPreviewSource = null;
+    /**
+     * Arrête une ou plusieurs voix de prévisualisation.
+     * @param {number|null} [id] - Id de la voix à arrêter. Si null ou absent,
+     * arrête TOUTES les voix de prévisualisation.
+     */
+    stopPreview(id = null) {
+        if (id !== null) {
+            // Arrêter une voix précise
+            const idx = this.previewVoices.findIndex(v => v.id === id);
+            if (idx >= 0) {
+                const voice = this.previewVoices[idx];
+                try { voice.source.stop(); } catch (e) {}
+                try {
+                    voice.source.disconnect();
+                    voice.gainNode.disconnect();
+                } catch (e) {}
+                this.previewVoices.splice(idx, 1);
+                if (this.lastPreviewSource && this.lastPreviewSource.id === id) {
+                    this.lastPreviewSource = null;
+                }
+            }
+            return;
         }
+
+        // Arrêter toutes les voix
+        for (const voice of this.previewVoices) {
+            try { voice.source.stop(); } catch (e) {}
+            try {
+                voice.source.disconnect();
+                voice.gainNode.disconnect();
+            } catch (e) {}
+        }
+        this.previewVoices = [];
+        this.lastPreviewSource = null;
     }
 
     /**

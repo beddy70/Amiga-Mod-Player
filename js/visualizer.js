@@ -22,6 +22,7 @@ class SampleViewer {
         this.popupInfo = document.getElementById('sample-popup-info');
         this.popupTitle = document.getElementById('sample-popup-title');
         this.popupClose = document.getElementById('sample-popup-close');
+        this.instrumentSelect = document.getElementById('sample-popup-instrument-select');
 
         // Éléments du zoom (popup)
         this.zoomInBtn = document.getElementById('sample-popup-zoom-in-btn');
@@ -83,6 +84,21 @@ class SampleViewer {
         this.popupStopBtn.addEventListener('click', () => this.stop());
         this.popupLoopBtn.addEventListener('click', () => this.toggleLoop());
 
+        // Sélecteur d'instrument : changer de sample dans le popup
+        if (this.instrumentSelect) {
+            this.instrumentSelect.addEventListener('change', () => {
+                const num = parseInt(this.instrumentSelect.value);
+                if (!isNaN(num)) {
+                    this.selectInstrument(num);
+                }
+                // Redonner le focus pour que les touches du clavier continuent de fonctionner
+                if (document.activeElement && document.activeElement.blur) {
+                    document.activeElement.blur();
+                }
+                window.focus();
+            });
+        }
+
         // Fermer le popup si clic en dehors
         document.addEventListener('click', (e) => {
             if (this.popupVisible && !this.popup.contains(e.target) && e.target !== this.canvas) {
@@ -124,7 +140,19 @@ class SampleViewer {
         });
 
         // Clavier de notes : sélecteur d'octave + construction
-        this.octaveSelect.addEventListener('change', () => this.buildKeyboard());
+        // Après le changement, on redonne le focus au document pour que les
+        // touches du clavier physique continuent de jouer les notes.
+        this.octaveSelect.addEventListener('change', () => {
+            this.buildKeyboard();
+            if (this.octaveSelect) {
+                this.octaveSelect.blur();
+            }
+            // Le focus retourne au body/document : les touches redeviennent actives
+            if (document.activeElement && document.activeElement.blur) {
+                document.activeElement.blur();
+            }
+            window.focus();
+        });
         this.buildKeyboard();
 
         // Clavier piano : clic pour jouer une note
@@ -222,6 +250,30 @@ class SampleViewer {
         this.drawPopup();
     }
 
+    setInstruments(samples) {
+        if (!this.instrumentSelect) return;
+        this.instrumentSelect.innerHTML = '';
+        if (samples && samples.length) {
+            for (const smp of samples) {
+                const opt = document.createElement('option');
+                opt.value = String(smp.num);
+                opt.textContent = String(smp.num).padStart(2, '0') + ' - ' + (smp.name || '(unnamed)');
+                this.instrumentSelect.appendChild(opt);
+            }
+        }
+        if (this.instrumentSelect) {
+            this.instrumentSelect.value = String(this.sampleNum);
+        }
+    }
+
+    selectInstrument(num) {
+        if (this.onSelectSample) {
+            this.onSelectSample(num);
+        } else {
+            this.setSample(num);
+        }
+    }
+
     play() {
         if (!this.player || !this.sample) return;
         this.player.stopPreview();
@@ -277,6 +329,10 @@ class SampleViewer {
         this.popupVisible = true;
         this.popup.classList.add('visible');
         this.popupInfo.textContent = this.sampleInfoString();
+        // Par défaut, la combo box instrument affiche l'instrument affiché dans le popup
+        if (this.instrumentSelect) {
+            this.instrumentSelect.value = String(this.sampleNum);
+        }
         this.drawPopup();
         // Le canvas du clavier n'a pas de largeur tant que le popup est masqué :
         // redessiner une fois le popup visible
@@ -1708,10 +1764,24 @@ class SampleViewer {
             ctx.fill();
         }
 
-        // Indication du pattern courant
-        ctx.fillStyle = themeText;
-        ctx.font = 'bold 9px monospace';
-        ctx.fillText(`PAT ${String(patternNum).padStart(2, '0')}`, w - 90, staffTop - 5);
+        // Indication du pattern courant (badge proéminent en haut à gauche)
+        const patLabel = `PAT ${String(patternNum).padStart(2, '0')}`;
+        ctx.font = 'bold 14px monospace';
+        const labelW = ctx.measureText(patLabel).width;
+        const badgeX = 10;
+        const badgeY = staffTop - 16;
+        const badgeH = 20;
+        // Fond du badge
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(badgeX - 4, badgeY, labelW + 8, badgeH);
+        // Bordure
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(badgeX - 4, badgeY, labelW + 8, badgeH);
+        // Texte
+        ctx.fillStyle = accent;
+        ctx.textAlign = 'left';
+        ctx.fillText(patLabel, badgeX, badgeY + badgeH - 5);
     }
 
     /**
